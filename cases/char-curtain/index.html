@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Curtain — a grid of characters you can part</title>
+<meta name="description" content="576 characters hung as 24 independent Verlet strings. The pointer parts them sideways, and each glyph's colour is its own speed.">
+<meta property="og:title" content="Curtain">
+<meta property="og:description" content="A character grid as 24 hanging Verlet strings, parted by the pointer.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23fff'/><g stroke='%23181b1b' stroke-width='1.4' fill='none'><path d='M8 4v24'/><path d='M14 4c0 8-2 16 0 24'/><path d='M20 4c0 8 2 16 0 24'/><path d='M26 4v24'/></g></svg>">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   MECHANISM / SKIN BANNER  ·  cases/AUTHORING.md Phase 3
+   ──────────────────────────────────────────────────────────────────────
+   MECHANISM (lift verbatim):  the entire <script>. The Verlet integrator,
+     the constraint solver, the anisotropic pointer force and the
+     speed-to-colour mapping are the case.
+   SKIN (do not lift — lift the REASONING, see README §可以照搬/不许照搬):
+     the white ground, the charcoal ink, the monospace face, the source
+     text hung on the strings, and the title layer.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root{
+  --paper:#ffffff;
+  --ink:#181b1b;
+  --ink-fast:#71717a;        /* what a glyph fades toward at full speed */
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+html,body{width:100%;height:100%;background:var(--paper)}
+body{
+  color:var(--ink);
+  font-family:var(--mono);
+  font-size:13px;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+.stage{position:fixed;inset:0}
+#curtain{display:block;width:100%;height:100%}
+
+/* The title layer sits over the curtain and takes no pointer events, so the
+   cloth is reachable everywhere including under the type. */
+.plate{
+  position:fixed;
+  inset:0;
+  z-index:2;
+  pointer-events:none;
+  padding:34px 38px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+}
+
+h1{
+  font-family:var(--mono);
+  font-size:clamp(44px,7vw,86px);
+  font-weight:500;
+  letter-spacing:-.04em;
+  line-height:.92;
+  max-width:14ch;
+}
+h1 span{color:var(--ink-fast)}
+
+.foot{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:24px;
+  font-size:11px;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+  color:var(--ink-fast);
+}
+.foot p{max-width:34ch;text-transform:none;letter-spacing:0;font-size:12px;line-height:1.5}
+.readout{display:flex;gap:10px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+.readout b{font-weight:500;color:var(--ink)}
+
+@media (max-width:640px){
+  .plate{padding:22px 20px}
+  h1{font-size:clamp(34px,11vw,52px)}
+  .foot{flex-direction:column;align-items:flex-start;gap:10px}
+}
+
+/* @mechanism — the cloth only ever moves because the pointer moved, so
+   there is nothing on a clock to switch off. The reduced-motion contract
+   here is that the page is ALREADY still when nobody touches it. */
+</style>
+</head>
+<body>
+
+<div class="stage"><canvas id="curtain"></canvas></div>
+
+<div class="plate">
+  <h1>Hang it,<br><span>then part it.</span></h1>
+  <div class="foot">
+    <p>576 glyphs on 24 strings. Move the pointer through the cloth — it parts
+       sideways and barely at all vertically, which is the only reason it stays
+       readable as lines.</p>
+    <span class="readout">
+      <b id="rPointer">pointer idle</b> ·
+      <b id="rGust">gust 0.00</b> ·
+      <b>576 glyphs · 24 strings</b>
+    </span>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════════
+   MECHANISM — lift verbatim.
+
+   A hanging cloth is 24 INDEPENDENT vertical strings, not a mesh. There
+   are no horizontal constraints at all: neighbouring columns are free to
+   separate, which is exactly what lets the pointer open a gap. Add the
+   horizontal links and you get a sheet that dents instead of parting.
+
+   The load-bearing detail is the ANISOTROPIC pointer force in step C: the
+   x component is applied in full and the y component at 0.35. Push a
+   character grid equally in both axes and the rows crush together into
+   blobs — the thing stops reading as text. The asymmetry is the whole
+   difference between "cloth" and "soup".
+   ══════════════════════════════════════════════════════════════════════ */
+
+const SOURCE = `
+function main() {
+  const canvas = document.getElementById("canvas");
+  const gl = canvas.getContext("webgl2");
+  if (!gl) return console.error("WebGL2 unsupported");
+
+  const particles = [];
+  const constraints = [];
+
+  for (let i = 0; i < cols; i++) {
+    for (let j = 0; j < rows; j++) {
+      const p = new VerletParticle(i * spacing, j * spacing);
+      if (j === 0) p.isPinned = true;
+      particles.push(p);
+    }
+  }
+
+  function solveConstraints() {
+    for (let step = 0; step < 5; step++) {
+      constraints.forEach(c => c.resolve());
+    }
+  }
+
+  function loop() {
+    updatePhysics();
+    drawCharacters();
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+}
+`;
+const CHARS = SOURCE.replace(/\s+/g, ' ').trim().split('');
+
+const COLS = 24;
+const ROWS = 24;
+const ROW_SPACING = 18;
+const CARD_W = 420;          // the cloth's own width, independent of viewport
+
+const GRAVITY = 0.28;        // light: long slow ripples rather than a fall
+const DRAG = 0.025;          // low: the ripple has to survive several seconds
+const SOLVER_PASSES = 5;
+const HOME_PULL = 0.35;      // how hard a top anchor returns to its peg
+const MOUSE_RADIUS = 75;
+const MOUSE_FORCE = 4.8;
+const MOUSE_Y_BIAS = 0.35;   // ← the anisotropy. 1.0 turns the text to soup.
+const BOUNCE = 0.6;
+const SPEED_FOR_FULL_FADE = 8.0;
+const GUST_PER_NOTCH = 0.055;   // wheel delta -> sideways impulse
+const GUST_DECAY = 0.94;        // per frame
+
+class Node {
+  constructor(x, y, char, isAnchor){
+    this.x = x; this.y = y;
+    this.oldX = x; this.oldY = y;
+    this.initX = x; this.initY = y;
+    this.char = char;
+    this.isAnchor = isAnchor;
+    this.radius = 8;
+  }
+  // Verlet: position IS the state; velocity is implied by the last position.
+  // Nothing here integrates a velocity, so a constraint can move a node and
+  // the motion stays consistent on the next frame for free.
+  update(gravity, drag){
+    const vx = (this.x - this.oldX) * (1 - drag);
+    const vy = (this.y - this.oldY) * (1 - drag);
+    this.oldX = this.x;
+    this.oldY = this.y;
+    this.x += vx;
+    this.y += vy + (this.isAnchor ? 0 : gravity);
+  }
+}
+
+class Link {
+  constructor(a, b, len){ this.a = a; this.b = b; this.len = len; }
+  resolve(){
+    const dx = this.b.x - this.a.x;
+    const dy = this.b.y - this.a.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist === 0) return;
+    const pct = ((this.len - dist) / dist) * 0.5;
+    const ox = dx * pct, oy = dy * pct;
+    this.a.x -= ox; this.a.y -= oy;
+    this.b.x += ox; this.b.y += oy;
+  }
+}
+
+const canvas = document.getElementById('curtain');
+const ctx = canvas.getContext('2d');
+
+const nodes = [];
+const links = [];
+const at = (c, r) => nodes[c * ROWS + r];
+
+(function build(){
+  let i = 0;
+  const w = window.innerWidth, h = window.innerHeight;
+  const colSpacing = CARD_W / (COLS - 1);
+  const x0 = (w - CARD_W) / 2;
+  const y0 = (h - ROWS * ROW_SPACING) / 2;
+  for (let c = 0; c < COLS; c++){
+    for (let r = 0; r < ROWS; r++){
+      nodes.push(new Node(x0 + c*colSpacing, y0 + r*ROW_SPACING,
+                          CHARS[i++ % CHARS.length], r === 0));
+    }
+  }
+  // Vertical links only — see the banner. No horizontal links anywhere.
+  for (let c = 0; c < COLS; c++){
+    for (let r = 1; r < ROWS; r++){
+      links.push(new Link(at(c, r-1), at(c, r), ROW_SPACING));
+    }
+  }
+})();
+
+function resize(){
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const dpr = Math.min(window.devicePixelRatio, 2);
+  // Assigning width resets the context, so the scale below is not cumulative.
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  // Re-peg the anchors to the new centre. Only the pegs move; the cloth
+  // below them swings to the new position on its own, which is the point.
+  const x0 = (rect.width - CARD_W) / 2;
+  const y0 = (rect.height - ROWS * ROW_SPACING) / 2;
+  for (let c = 0; c < COLS; c++){
+    const head = at(c, 0);
+    const nx = x0 + c * (CARD_W / (COLS - 1));
+    head.x = nx; head.oldX = nx; head.initX = nx; head.initY = y0;
+  }
+}
+resize();
+new ResizeObserver(resize).observe(canvas);
+
+let mouseX = 0, mouseY = 0, mouseActive = false, visible = true;
+let gust = 0;
+addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; mouseActive = true; });
+document.addEventListener('mouseleave', () => { mouseActive = false; });
+document.addEventListener('visibilitychange', () => { visible = document.visibilityState === 'visible'; });
+
+// A gust: one sideways impulse applied to the whole cloth. The strings are
+// independent, so the wave arrives at every column at once and then falls
+// apart at its own rate — which is the cheapest way to show that this is 24
+// strings and not one sheet.
+addEventListener('wheel', (e) => {
+  gust += Math.max(-6, Math.min(6, e.deltaY * GUST_PER_NOTCH));
+}, { passive: true });
+
+const rPointer = document.getElementById('rPointer');
+const rGust = document.getElementById('rGust');
+let readoutTick = 0;
+
+function frame(){
+  if (!visible){ requestAnimationFrame(frame); return; }
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width, h = rect.height;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+
+  // A · integrate
+  for (const n of nodes) n.update(GRAVITY, DRAG);
+
+  // A2 · the gust, decaying. Anchors take a quarter of it so the whole
+  //      curtain leans before the body of it catches up.
+  if (Math.abs(gust) > 0.001){
+    for (const n of nodes) n.x += gust * (n.isAnchor ? 0.25 : 1);
+    gust *= GUST_DECAY;
+    if (Math.abs(gust) < 0.001) gust = 0;
+  }
+
+  // B · the top row is sprung to its peg rather than nailed to it, so a
+  //     hard shove visibly tugs the whole curtain off its rail and back.
+  for (const n of nodes){
+    if (!n.isAnchor) continue;
+    n.x += (n.initX - n.x) * HOME_PULL;
+    n.y += (n.initY - n.y) * HOME_PULL;
+  }
+
+  // C · anisotropic pointer force — full in x, 0.35 in y
+  if (mouseActive){
+    for (const n of nodes){
+      const dx = n.x - mouseX, dy = n.y - mouseY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      if (dist >= MOUSE_RADIUS || dist === 0) continue;
+      const pct = 1 - dist / MOUSE_RADIUS;
+      const force = pct * pct * MOUSE_FORCE;
+      const grip = n.isAnchor ? 0.75 : 1.0;
+      n.x += (dx / dist) * force * grip;
+      n.y += (dy / dist) * force * MOUSE_Y_BIAS * grip;
+    }
+  }
+
+  // D · solve. Five passes is stiffness; one pass is a rubber band.
+  for (let s = 0; s < SOLVER_PASSES; s++){
+    for (const l of links) l.resolve();
+  }
+
+  // E · elastic screen bounds. Reflecting oldX (not x) is what turns the
+  //     clamp into a bounce: it rewrites the implied velocity.
+  for (const n of nodes){
+    if (n.isAnchor) continue;
+    if (n.x < n.radius){ n.x = n.radius; n.oldX = n.x + Math.abs(n.oldX - n.x) * BOUNCE; }
+    else if (n.x > w - n.radius){ n.x = w - n.radius; n.oldX = n.x - Math.abs(n.oldX - n.x) * BOUNCE; }
+    if (n.y < n.radius){ n.y = n.radius; n.oldY = n.y + Math.abs(n.oldY - n.y) * BOUNCE; }
+    else if (n.y > h - n.radius){ n.y = h - n.radius; n.oldY = n.y - Math.abs(n.oldY - n.y) * BOUNCE; }
+  }
+
+  // F · draw. Colour and alpha are BOTH functions of the node's own speed,
+  //     so the fast part of a ripple greys out and the still part stays
+  //     black. That gradient is the only motion cue in a still frame.
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  ctx.font = '14px ui-monospace, "SF Mono", Menlo, monospace';
+  for (const n of nodes){
+    const vx = n.x - n.oldX, vy = n.y - n.oldY;
+    const ratio = Math.min(Math.sqrt(vx*vx + vy*vy) / SPEED_FOR_FULL_FADE, 1);
+    const c = Math.round(24 * (1 - ratio) + 113 * ratio);
+    const b = Math.round(27 * (1 - ratio) + 122 * ratio);
+    ctx.fillStyle = `rgba(${c}, ${c}, ${b}, ${1 - ratio * 0.35})`;
+    ctx.fillText(n.char, n.x, n.y);
+  }
+
+  // Throttled readout. Writing text every frame would be 60 layout
+  // invalidations a second for a number nobody can read that fast.
+  if ((readoutTick = (readoutTick + 1) % 6) === 0){
+    const pt = mouseActive ? 'pointer active' : 'pointer idle';
+    if (rPointer.textContent !== pt) rPointer.textContent = pt;
+    rGust.textContent = 'gust ' + Math.abs(gust).toFixed(2);
+  }
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ── oracle surface ──────────────────────────────────────────────────
+   READ-ONLY. There is no way to displace the cloth from here; --curtain
+   drives a real pointer across it. Exposing a `push()` would test a path
+   the mouse never takes.                                              */
+window.__probe = {
+  count:    () => nodes.length,
+  cols:     () => COLS,
+  rows:     () => ROWS,
+  links:    () => links.length,
+  // per-column x at a given row — the gap between columns is the assertion
+  rowX:     (r) => Array.from({length: COLS}, (_, c) => at(c, r).x),
+  rowY:     (r) => Array.from({length: COLS}, (_, c) => at(c, r).y),
+  anchors:  () => nodes.filter(n => n.isAnchor).map(n => ({ x:n.x, y:n.y, ix:n.initX, iy:n.initY })),
+  speeds:   () => nodes.map(n => Math.hypot(n.x - n.oldX, n.y - n.oldY)),
+  linkLengths: () => links.map(l => Math.hypot(l.b.x - l.a.x, l.b.y - l.a.y)),
+  rest:     () => ROW_SPACING,
+  gust:     () => gust,
+  // mean |x - peg x| per column: how far each string has been pushed off
+  // its own hanging line. The gap between a poked column and a distant one
+  // is the only proof that the columns are not linked to each other.
+  colOffsets: () => Array.from({length: COLS}, (_, c) => {
+    const peg = at(c, 0).initX;
+    let sum = 0;
+    for (let r = 1; r < ROWS; r++) sum += Math.abs(at(c, r).x - peg);
+    return sum / (ROWS - 1);
+  }),
+};
+</script>
+</body>
+</html>

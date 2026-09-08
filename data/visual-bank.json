@@ -1,0 +1,355 @@
+{
+  "_meta": {
+    "version": "1.1",
+    "description": "Static-first visual design reference: palette, typography and layout archetypes with concrete values. Pick one archetype and commit before adding motion.",
+    "last_updated": "2026-09-05",
+    "palette_archetypes": 7,
+    "typography_archetypes": 5,
+    "layout_archetypes": 5
+  },
+  "palette_archetypes": [
+    {
+      "id": "p-01",
+      "name": "Deep Void",
+      "mood": [
+        "premium",
+        "cinematic",
+        "focused"
+      ],
+      "background": "#080808",
+      "surface": "rgba(255,255,255,0.035)",
+      "border": "rgba(255,255,255,0.08)",
+      "text_primary": "#f0f0f0",
+      "text_secondary": "rgba(240,240,240,0.55)",
+      "text_tertiary": "rgba(240,240,240,0.28)",
+      "accent": "#ffffff",
+      "usage": "AI research, premium SaaS, editorial presentations",
+      "avoid": "Avoid for consumer brands, children's products, anything requiring warmth",
+      "source_ref": [
+        5,
+        7,
+        16,
+        20,
+        29
+      ]
+    },
+    {
+      "id": "p-02",
+      "name": "Warm Cream",
+      "mood": [
+        "approachable",
+        "editorial",
+        "human"
+      ],
+      "background": "#f7f2ed",
+      "surface": "#ffffff",
+      "border": "rgba(0,0,0,0.08)",
+      "text_primary": "#1a1a18",
+      "text_secondary": "#666666",
+      "text_tertiary": "#999999",
+      "accent": "#000000",
+      "usage": "Blogs, editorial sites, personal portfolios, coaching services",
+      "avoid": "Tech products, developer tools, anything signaling precision or speed",
+      "source_ref": [
+        28,
+        33,
+        38
+      ]
+    },
+    {
+      "id": "p-03",
+      "name": "Warm Beige (Smithery tone)",
+      "mood": [
+        "warm",
+        "technical",
+        "approachable"
+      ],
+      "background": "#e7e5df",
+      "surface": "#f5f5f5",
+      "border": "rgba(36,36,36,0.1)",
+      "text_primary": "#242424",
+      "text_secondary": "#666666",
+      "text_tertiary": "#999999",
+      "accent": "#ff5500",
+      "usage": "AI tools, developer platforms, community products that want approachability",
+      "avoid": "Copy the orange directly — it's Smithery-specific. Pick a new accent.",
+      "source_ref": [
+        2
+      ]
+    },
+    {
+      "id": "p-04",
+      "name": "Cool Near-White",
+      "mood": [
+        "clean",
+        "systematic",
+        "technical"
+      ],
+      "background": "#f5f5f5",
+      "surface": "#ffffff",
+      "border": "#e5e5e5",
+      "text_primary": "#000000",
+      "text_secondary": "#666666",
+      "text_tertiary": "#999999",
+      "accent": "#000000",
+      "usage": "Design tools, portfolios, agencies with Swiss/minimal sensibility",
+      "avoid": "Contexts needing emotional warmth or brand differentiation from competitors",
+      "source_ref": [
+        11,
+        18,
+        21
+      ]
+    },
+    {
+      "id": "p-05",
+      "name": "Warm Gray",
+      "mood": [
+        "refined",
+        "quiet",
+        "human"
+      ],
+      "background": "#ededed",
+      "surface": "#f7f7f7",
+      "border": "rgba(0,0,0,0.08)",
+      "text_primary": "#000000",
+      "text_secondary": "#8f8f8f",
+      "text_tertiary": "#c0c0c0",
+      "accent": "inherited",
+      "usage": "Interaction design portfolios, minimal personal sites, subtle brand presences",
+      "avoid": "High-density or data-rich contexts — breathing room is mandatory",
+      "source_ref": [
+        4,
+        8
+      ]
+    },
+    {
+      "id": "p-06",
+      "name": "Soft Green / Organic",
+      "mood": [
+        "natural",
+        "healthy",
+        "premium-consumer"
+      ],
+      "background": "#e8efe4",
+      "surface": "#f5f9f3",
+      "border": "rgba(0,0,0,0.08)",
+      "text_primary": "#1a2416",
+      "text_secondary": "#5a6b52",
+      "text_tertiary": "#98a890",
+      "accent": "#2d5a1b",
+      "usage": "Health, food, sustainability, wellness, premium packaged goods",
+      "avoid": "Tech contexts, financial services",
+      "source_ref": [
+        42
+      ]
+    },
+    {
+      "id": "p-07",
+      "name": "Bold Black + Signal Accent",
+      "mood": [
+        "bold",
+        "high-contrast",
+        "experimental"
+      ],
+      "background": "#000000",
+      "surface": "rgba(255,255,255,0.05)",
+      "border": "rgba(255,255,255,0.12)",
+      "text_primary": "#fffef4",
+      "text_secondary": "#909090",
+      "text_tertiary": "#555555",
+      "accent_options": [
+        "#ff0000",
+        "#00ff6a",
+        "#ffff00"
+      ],
+      "usage": "Creative agencies, award sites, experimental portfolios, bold studios",
+      "avoid": "Any signal accent must be used sparingly — one per page max. Don't pair two signal colors.",
+      "source_ref": [
+        7,
+        12,
+        40
+      ]
+    }
+  ],
+  "typography_archetypes": [
+    {
+      "id": "t-01",
+      "name": "Thin Editorial Display",
+      "mood": [
+        "cinematic",
+        "premium",
+        "minimal"
+      ],
+      "heading_font": "DM Sans (weight 300) OR Neue Montreal (weight 200) OR GT Alpina",
+      "body_font": "DM Sans (weight 400) OR Inter",
+      "mono_font": "DM Mono OR SF Mono",
+      "h1_size": "clamp(3.5rem, 7vw, 6rem)",
+      "h1_weight": "300",
+      "h1_line_height": "1.05",
+      "h1_letter_spacing": "-0.03em to -0.04em",
+      "body_size": "1rem",
+      "body_line_height": "1.65",
+      "pairing_rule": "Single weight family — distinction comes from size/case, not weight switches",
+      "usage": "AI research, editorial presentations, premium SaaS, personal portfolios",
+      "source_ref": [
+        5,
+        8,
+        14
+      ]
+    },
+    {
+      "id": "t-02",
+      "name": "Bold Grotesk Display",
+      "mood": [
+        "bold",
+        "impactful",
+        "brand-forward"
+      ],
+      "heading_font": "GT Walsheim Pro OR Neue Montreal Bold OR NB International Pro",
+      "body_font": "Helvetica Neue OR Inter",
+      "h1_size": "clamp(4rem, 8vw, 7rem)",
+      "h1_weight": "600–700",
+      "h1_line_height": "1.0",
+      "h1_letter_spacing": "-0.04em",
+      "body_size": "1rem",
+      "body_line_height": "1.5",
+      "pairing_rule": "Extreme weight contrast — hero at 700, body at 400, nothing in between",
+      "usage": "Product launches, SaaS marketing, bold agency sites",
+      "source_ref": [
+        3,
+        7,
+        12
+      ]
+    },
+    {
+      "id": "t-03",
+      "name": "Swiss Typographic",
+      "mood": [
+        "precise",
+        "systematic",
+        "elegant"
+      ],
+      "heading_font": "Universal Sans OR Helvetica Neue OR Aktiv Grotesk",
+      "body_font": "Same family, lighter weight",
+      "h1_size": "clamp(2.5rem, 5vw, 4.5rem)",
+      "h1_weight": "500",
+      "h1_line_height": "1.15",
+      "h1_letter_spacing": "-0.02em",
+      "body_size": "1rem",
+      "body_line_height": "1.6",
+      "pairing_rule": "Same typeface across all sizes — weight is the only variable. No decorative typefaces.",
+      "usage": "Design agencies, portfolios, systematic products",
+      "source_ref": [
+        10,
+        15,
+        22
+      ]
+    },
+    {
+      "id": "t-04",
+      "name": "Serif + Sans Pairing",
+      "mood": [
+        "editorial",
+        "trustworthy",
+        "human"
+      ],
+      "heading_font": "Playfair Display OR GT Alpina OR Freight Display (serif)",
+      "body_font": "Satoshi OR Inter OR DM Sans (sans)",
+      "h1_size": "clamp(2.5rem, 5vw, 4rem)",
+      "h1_weight": "400 (serif weight is inherently heavier)",
+      "h1_line_height": "1.2",
+      "h1_letter_spacing": "-0.01em",
+      "body_size": "1.05rem",
+      "body_line_height": "1.7",
+      "pairing_rule": "Serif for headings creates warmth; sans for body ensures readability. Never mix at same size.",
+      "usage": "Coaching, consulting, editorial, luxury consumer",
+      "source_ref": [
+        9,
+        28,
+        32
+      ]
+    },
+    {
+      "id": "t-05",
+      "name": "Monospace Technical",
+      "mood": [
+        "technical",
+        "developer",
+        "precise"
+      ],
+      "heading_font": "DM Mono OR Fira Code OR Berkeley Mono",
+      "body_font": "Inter OR System UI",
+      "h1_size": "clamp(1.75rem, 3vw, 2.5rem)",
+      "h1_weight": "500",
+      "h1_line_height": "1.4",
+      "h1_letter_spacing": "0",
+      "body_size": "0.9rem",
+      "body_line_height": "1.6",
+      "pairing_rule": "Mono for all headings and code; sans for body and labels. Tight line-height for mono, looser for sans.",
+      "usage": "Developer tools, CLIs, API docs, technical portfolios",
+      "source_ref": [
+        7,
+        13,
+        31
+      ]
+    }
+  ],
+  "layout_archetypes": [
+    {
+      "id": "l-01",
+      "name": "Bento Grid (Pixel-gap)",
+      "structure": "CSS Grid 12-column with 1px gap; gap IS the border",
+      "css_snippet": "display: grid; grid-template-columns: repeat(12, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 20px; overflow: hidden;",
+      "cell_background": "Match --bg; creates illusion of framed panels",
+      "max_width": "1100–1200px centered",
+      "section_spacing": "5–6rem between major sections",
+      "density": "medium",
+      "usage": "Feature showcases, data dashboards, research presentations",
+      "collapse": "Stack cells to 1-column at 768px; maintain border-radius"
+    },
+    {
+      "id": "l-02",
+      "name": "Editorial Single Column",
+      "structure": "Single centered column, 680–720px max",
+      "css_snippet": "max-width: 720px; margin: 0 auto; padding: 0 2rem;",
+      "max_width": "720px",
+      "section_spacing": "6–10rem (breathing is the design)",
+      "density": "low",
+      "usage": "Long-form writing, portfolios, personal sites",
+      "collapse": "Full-width with 1.5rem padding at mobile; font-size stays same"
+    },
+    {
+      "id": "l-03",
+      "name": "Asymmetric Split",
+      "structure": "2:1 or 3:1 column ratio — primary content + sidebar or callout",
+      "css_snippet": "display: grid; grid-template-columns: 2fr 1fr; gap: 2rem;",
+      "max_width": "1100px",
+      "section_spacing": "4rem",
+      "density": "medium",
+      "usage": "Product pages, feature comparisons, research papers",
+      "collapse": "Reverse to 1-column at 768px; sidebar content moves below"
+    },
+    {
+      "id": "l-04",
+      "name": "Full-Bleed Immersive",
+      "structure": "100vw sections, content positioned within; no max-width container",
+      "css_snippet": "width: 100vw; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 4rem;",
+      "max_width": "None (or internal content cap of 1400px)",
+      "section_spacing": "0 (section boundaries are visual, not spatial)",
+      "density": "variable",
+      "usage": "Creative studios, scroll-driven storytelling, product reveals",
+      "collapse": "Keep full-bleed; adjust padding to 1.5rem at mobile"
+    },
+    {
+      "id": "l-05",
+      "name": "Masonry Image Grid",
+      "structure": "CSS columns or JS Masonry; variable row heights",
+      "css_snippet": "columns: 3 280px; gap: 1rem; break-inside: avoid;",
+      "max_width": "1400px",
+      "section_spacing": "4rem",
+      "density": "high",
+      "usage": "Portfolios, galleries, image-first discovery platforms",
+      "collapse": "2 columns at 1024px; 1 column at 640px"
+    }
+  ]
+}

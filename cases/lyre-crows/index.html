@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Lyre &amp; the Ink Crows</title>
+<meta name="description" content="Strum nine Verlet strings to release words; three steering crows hunt them down and rewrite their own tails with what they catch.">
+<meta property="og:title" content="The Lyre & the Ink Crows">
+<meta property="og:description" content="A closed causal loop: strum, release, hunt, rewrite.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%23d6c8b3'/><path d='M6 20h20M6 24h20' stroke='%23b91c1c' stroke-width='1.2'/><path d='M20 9l-5 2 5 2-2-2z' fill='%231e293b'/></svg>">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   MECHANISM / SKIN BANNER  ·  cases/AUTHORING.md Phase 3
+   ──────────────────────────────────────────────────────────────────────
+   MECHANISM (lift verbatim):  the whole <script>. The Verlet nodes and
+     links, the steering integrator, the rate limiter, the capture ->
+     rewrite handoff, and the per-glyph heading rotation.
+   SKIN (do not lift — lift the REASONING, see README §可以照搬/不许照搬):
+     the tea-stained ground, the vermillion, the Georgia italic, the
+     sonnet vocabulary, the origami crow's outline, and the title layer.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root{
+  --paper:#d6c8b3;
+  --ink:#1e293b;
+  --vermillion:#b91c1c;
+  --dim:#6b6255;
+  --serif:Georgia,"Times New Roman",serif;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+html,body{width:100%;height:100%;background:var(--paper)}
+body{
+  color:var(--ink);
+  font-family:var(--serif);
+  font-size:13px;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+.stage{position:fixed;inset:0}
+#scene{display:block;width:100%;height:100%}
+
+.plate{
+  position:fixed;
+  inset:0;
+  z-index:2;
+  pointer-events:none;
+  padding:34px 40px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+}
+
+h1{
+  font-family:var(--serif);
+  font-style:italic;
+  font-weight:400;
+  font-size:clamp(40px,6.4vw,78px);
+  line-height:.98;
+  letter-spacing:-.02em;
+  max-width:15ch;
+  color:var(--ink);
+}
+h1 em{font-style:normal;color:var(--vermillion)}
+
+.foot{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:28px;
+}
+.foot p{
+  max-width:38ch;
+  font-size:13px;
+  line-height:1.55;
+  color:var(--ink);
+}
+.readout{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  font-size:10px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--dim);
+  font-variant-numeric:tabular-nums;
+}
+.readout b{font-weight:400;color:var(--vermillion)}
+
+@media (max-width:640px){
+  .plate{padding:22px 20px}
+  h1{font-size:clamp(30px,9vw,46px)}
+  .foot{flex-direction:column;align-items:flex-start;gap:12px}
+}
+
+/* @mechanism — the crows glide on their own clock, so unlike every other
+   case here there IS something to switch off. Under reduced-motion the
+   scene is paused on its first settled frame rather than hidden. */
+</style>
+</head>
+<body>
+
+<div class="stage"><canvas id="scene"></canvas></div>
+
+<div class="plate">
+  <h1>Strum it and<br>a word gets<br><em>eaten.</em></h1>
+  <div class="foot">
+    <p>Drag across the red strings to shake a word loose. The crows are not
+       following you — they are following the word, and whichever one reaches
+       it first rewrites its own tail with what it caught.</p>
+    <span class="readout">
+      <b id="rPointer">pointer idle</b> ·
+      <b id="rWords">0 aloft</b> ·
+      <b id="rHunt">crows idle</b> ·
+      <b id="rCaught">0 caught</b>
+    </span>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════════
+   MECHANISM — lift verbatim.
+
+   This is a closed causal loop, and that is the point of the case:
+
+       strum a string  ->  a word is released  ->  a crow steers to it
+                       ->  it eats it  ->  its tail becomes that word
+
+   Nothing here is choreographed. There is no timeline and no sequence:
+   every visible event is a consequence of the previous one, and the only
+   input is the pointer. Two things keep a loop like this from turning
+   into noise, and both are load-bearing:
+
+     1. RATE LIMITING at the source. A strum can fire at most one word,
+        at most four may be aloft, and never within 800ms of the last.
+        Without this a fast drag emits hundreds and the scene is soup.
+     2. A DECAY on the product. Every word loses 1/4s of its life per
+        second no matter what, so an uneaten word always leaves. A loop
+        that only removes things on success accumulates forever.
+   ══════════════════════════════════════════════════════════════════════ */
+
+// ── shared Verlet primitives ────────────────────────────────────────
+class Node {
+  constructor(x, y, char, isAnchor){
+    this.x = x; this.y = y;
+    this.oldX = x; this.oldY = y;
+    this.initX = x; this.initY = y;
+    this.char = char; this.isAnchor = isAnchor;
+  }
+  update(gravity, drag){
+    const vx = (this.x - this.oldX) * (1 - drag);
+    const vy = (this.y - this.oldY) * (1 - drag);
+    this.oldX = this.x; this.oldY = this.y;
+    this.x += vx;
+    this.y += vy + (this.isAnchor ? 0 : gravity);
+  }
+}
+
+class Link {
+  constructor(a, b, len){ this.a = a; this.b = b; this.len = len; }
+  resolve(){
+    const dx = this.b.x - this.a.x, dy = this.b.y - this.a.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    if (dist === 0) return;
+    const pct = ((this.len - dist) / dist) * 0.5;
+    const ox = dx * pct, oy = dy * pct;
+    this.a.x -= ox; this.a.y -= oy;
+    this.b.x += ox; this.b.y += oy;
+  }
+}
+
+// ── a string you can strum ──────────────────────────────────────────
+const STRING_COUNT = 9;
+const STRING_SPACING_Y = 15;
+const STRING_NODE_SPACING = 8;
+const STRING_DRAG = 0.035;      // high: a plucked string must settle, not ring forever
+const STRUM_RADIUS = 38;
+const STRUM_TRANSFER = 0.85;    // how much of the pointer's y velocity the node takes
+const STRUM_SPEED_MIN = 2.0;    // below this the pointer is resting on it, not strumming
+const STRUM_CHANCE = 0.12;
+
+class LyreString {
+  constructor(y, x0, x1){
+    this.y = y; this.x0 = x0; this.x1 = x1;
+    this.nodes = []; this.links = [];
+    const count = Math.max(2, Math.floor((x1 - x0) / STRING_NODE_SPACING));
+    const spacing = (x1 - x0) / count;
+    for (let i = 0; i <= count; i++){
+      const n = new Node(x0 + i*spacing, y, '', i === 0 || i === count);
+      this.nodes.push(n);
+      if (i > 0) this.links.push(new Link(this.nodes[i-1], n, spacing));
+    }
+  }
+  update(mx, my, pmx, pmy, active, canSpawn){
+    const len = this.nodes.length;
+    for (const n of this.nodes) n.update(0, STRING_DRAG);   // no gravity: it is under tension
+    // Both ends are nailed to the frame every frame. A string is defined by
+    // its endpoints not moving; everything else is what happens in between.
+    this.nodes[0].x = this.x0; this.nodes[0].y = this.y;
+    this.nodes[len-1].x = this.x1; this.nodes[len-1].y = this.y;
+
+    let spawn = null;
+    if (active){
+      const mvy = my - pmy;
+      const speed = Math.hypot(mx - pmx, mvy);
+      for (let i = 1; i < len - 1; i++){
+        const n = this.nodes[i];
+        const dist = Math.hypot(n.x - mx, n.y - my);
+        if (dist >= STRUM_RADIUS) continue;
+        const pct = (STRUM_RADIUS - dist) / STRUM_RADIUS;
+        // The string takes the pointer's VELOCITY, not its position. Resting
+        // the cursor on a string does nothing; dragging through it plucks.
+        n.y += mvy * pct * STRUM_TRANSFER;
+        if (canSpawn && speed > STRUM_SPEED_MIN && Math.random() < STRUM_CHANCE){
+          spawn = { x: n.x, y: n.y };
+        }
+      }
+    }
+    for (let s = 0; s < 5; s++) for (const l of this.links) l.resolve();
+    return spawn;
+  }
+  draw(ctx){
+    ctx.strokeStyle = 'rgba(185,28,28,0.28)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(this.nodes[0].x, this.nodes[0].y);
+    for (let i = 1; i < this.nodes.length; i++) ctx.lineTo(this.nodes[i].x, this.nodes[i].y);
+    ctx.stroke();
+  }
+}
+
+// ── a word shaken loose ─────────────────────────────────────────────
+const WORD_LIFE_PER_FRAME = 0.0042;   // ~4s at 60fps, and it decays unconditionally
+class Word {
+  constructor(x, y, text){
+    this.x = x; this.y = y; this.text = text;
+    this.vy = -0.5 - Math.random()*0.3;
+    this.vx = (Math.random() - 0.5) * 0.4;
+    this.life = 1; this.seed = Math.random() * Math.PI * 2;
+    this.eaten = false;
+  }
+  update(t){
+    this.x += this.vx + Math.sin(t*0.003 + this.seed) * 0.25;
+    this.y += this.vy;
+    this.life -= WORD_LIFE_PER_FRAME;
+  }
+  draw(ctx){
+    if (this.life <= 0) return;
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.fillStyle = `rgba(185,28,28,${this.life * 0.06})`;
+    ctx.beginPath(); ctx.arc(0, 0, 26, 0, Math.PI*2); ctx.fill();
+    ctx.font = 'italic bold 11px Georgia, serif';
+    ctx.fillStyle = `rgba(185,28,28,${this.life * 0.8})`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(this.text, 0, 0);
+    ctx.restore();
+  }
+}
+
+// ── a crow that hunts them ──────────────────────────────────────────
+const CROW_MAX_SPEED = 2.0;
+const CROW_MAX_FORCE = 0.055;     // the turn radius. Raise it and it teleports.
+const CROW_DIVE_GAIN = 1.55;      // hunting is faster than gliding — visible intent
+const CROW_CATCH_DIST = 18;
+const TAIL_SPACING = 18;          // wide enough that adjacent glyphs never collide
+const TAIL_GRAVITY = 0.16;
+const TAIL_DRAG = 0.025;
+const TAIL_PASSES = 4;
+
+class Crow {
+  constructor(id, x, y, sentence){
+    this.id = id; this.x = x; this.y = y;
+    this.prevX = x; this.prevY = y;
+    this.vx = (Math.random()-0.5)*2; this.vy = (Math.random()-0.5)*2;
+    this.angle = 0;
+    this.wingOffset = Math.random() * Math.PI * 2;
+    this.wingSpeed = 0.007 + Math.random()*0.004;
+    this.caught = 0;
+    this.hunting = false;
+    this.tail = []; this.tailLinks = [];
+    const chars = sentence.split('');
+    const len = Math.max(18, chars.length);
+    for (let i = 0; i < len; i++){
+      const n = new Node(x, y + i*TAIL_SPACING, chars[i] || ' ', i === 0);
+      this.tail.push(n);
+      if (i > 0) this.tailLinks.push(new Link(this.tail[i-1], n, TAIL_SPACING));
+    }
+  }
+
+  // The capture does not spawn anything. It REWRITES the crow's own tail and
+  // kicks it — the consequence is carried by the thing that already existed.
+  eat(word){
+    const chars = `${word} LINES TO TIME`.split('');
+    for (let i = 0; i < this.tail.length; i++){
+      this.tail[i].char = chars[i] || ' ';
+      if (i > 0){
+        this.tail[i].x += (Math.random()-0.5) * 6;
+        this.tail[i].y += Math.random() * 5 + 3;
+      }
+    }
+    this.caught++;
+  }
+
+  update(t, words, cx, cy){
+    let target = null, best = Infinity;
+    for (const w of words){
+      if (w.eaten || w.life <= 0) continue;
+      const d = Math.hypot(w.x - this.x, w.y - this.y);
+      if (d < best){ best = d; target = w; }
+    }
+    this.hunting = !!target;
+
+    let sx = 0, sy = 0;
+    if (target){
+      const dx = target.x - this.x, dy = target.y - this.y;
+      const d = Math.hypot(dx, dy);
+      if (d < CROW_CATCH_DIST){ target.eaten = true; this.eat(target.text); }
+      else {
+        const sp = CROW_MAX_SPEED * CROW_DIVE_GAIN;
+        sx = (dx/d)*sp - this.vx; sy = (dy/d)*sp - this.vy;
+      }
+    } else {
+      // Idle glide on a lissajous, phase-offset per crow so three of them
+      // never line up into a formation.
+      const a = t*0.0006 + this.id * (Math.PI/2);
+      const hx = cx + Math.cos(a)*180, hy = cy - 100 + Math.sin(a*2)*50;
+      const dx = hx - this.x, dy = hy - this.y, d = Math.hypot(dx, dy);
+      if (d > 5){ sx = (dx/d)*CROW_MAX_SPEED - this.vx; sy = (dy/d)*CROW_MAX_SPEED - this.vy; }
+    }
+
+    // Clamping the STEERING force, not the velocity, is what gives a turn a
+    // radius. Clamp only the speed and the bird pivots on the spot.
+    const f = Math.hypot(sx, sy);
+    if (f > CROW_MAX_FORCE){ sx = (sx/f)*CROW_MAX_FORCE; sy = (sy/f)*CROW_MAX_FORCE; }
+    this.vx += sx; this.vy += sy;
+
+    const sp = Math.hypot(this.vx, this.vy);
+    const lim = target ? CROW_MAX_SPEED*CROW_DIVE_GAIN : CROW_MAX_SPEED;
+    if (sp > lim){ this.vx = (this.vx/sp)*lim; this.vy = (this.vy/sp)*lim; }
+
+    this.prevX = this.x; this.prevY = this.y;
+    this.x += this.vx; this.y += this.vy;
+    this.angle = Math.atan2(this.vy, this.vx);
+
+    // The tail's head is pinned to the bird AND given the bird's last
+    // position as its "old" — so the tail inherits the bird's velocity
+    // rather than being dragged from a standstill every frame.
+    const head = this.tail[0];
+    head.x = this.x; head.y = this.y;
+    head.oldX = this.prevX; head.oldY = this.prevY;
+
+    for (let i = 1; i < this.tail.length; i++) this.tail[i].update(TAIL_GRAVITY, TAIL_DRAG);
+    for (let s = 0; s < TAIL_PASSES; s++) for (const l of this.tailLinks) l.resolve();
+  }
+
+  draw(ctx, t, active, mx, my){
+    ctx.strokeStyle = 'rgba(185,28,28,0.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(this.tail[0].x, this.tail[0].y);
+    for (let i = 1; i < this.tail.length; i++) ctx.lineTo(this.tail[i].x, this.tail[i].y);
+    ctx.stroke();
+
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    ctx.font = 'italic bold 11px Georgia, serif';
+    ctx.fillStyle = 'rgba(185,28,28,0.85)';
+    for (let i = 1; i < this.tail.length; i++){
+      const n = this.tail[i];
+      if (n.char === ' ') continue;
+      if (active){
+        const dx = n.x - mx, dy = n.y - my, d = Math.hypot(dx, dy);
+        if (d < 45 && d > 0){
+          const pct = (45 - d) / 45;
+          n.x += (dx/d) * pct * 1.5;
+          n.y += (dy/d) * pct * 0.8;
+        }
+      }
+      // Each glyph is rotated to the heading of its own segment, so the
+      // sentence reads along the curve instead of lying flat across it.
+      const prev = this.tail[i-1];
+      ctx.save();
+      ctx.translate(n.x, n.y);
+      ctx.rotate(Math.atan2(n.y - prev.y, n.x - prev.x));
+      ctx.fillText(n.char, 0, 0);
+      ctx.restore();
+    }
+
+    const flap = Math.sin(t * this.wingSpeed + this.wingOffset) * 0.52;
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle);
+    ctx.fillStyle = 'rgb(30,41,59)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(12,0); ctx.lineTo(0,-3.5); ctx.lineTo(-12,0); ctx.lineTo(0,3.5);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgb(15,23,42)';
+    const ly = -12 + flap*12;
+    ctx.beginPath();
+    ctx.moveTo(0,-3.5); ctx.lineTo(-4,ly); ctx.lineTo(-15,ly-5+flap*8); ctx.lineTo(-6,-2);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    const ry = 12 - flap*12;
+    ctx.beginPath();
+    ctx.moveTo(0,3.5); ctx.lineTo(-4,ry); ctx.lineTo(-15,ry+5-flap*8); ctx.lineTo(-6,2);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ── scene ───────────────────────────────────────────────────────────
+const VOCAB = ['ETERNAL','SUMMER','SHADOW','BEAUTY','LINES','GROW’ST',
+               'SHAKESPEARE','DEATH','BUDS','WANDERING','COMPLEXION','TEMPERATE'];
+const MAX_ALOFT = 4;
+const SPAWN_COOLDOWN_MS = 800;
+
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+const rPointer = document.getElementById('rPointer');
+const rWords = document.getElementById('rWords');
+const rHunt = document.getElementById('rHunt');
+const rCaught = document.getElementById('rCaught');
+
+let strings = [], words = [], crows = [];
+let mouseX = 0, mouseY = 0, pmx = 0, pmy = 0, mouseActive = false;
+let visible = true, lastSpawn = 0, totalCaught = 0, readoutTick = 0;
+let reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function layout(){
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const dpr = Math.min(devicePixelRatio, 2);
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const cx = rect.width/2, cy = rect.height/2;
+  const w = Math.min(rect.width * 0.76, 520);
+  const x0 = cx - w/2, y0 = cy + 100;
+  if (!strings.length){
+    for (let i = 0; i < STRING_COUNT; i++)
+      strings.push(new LyreString(y0 + i*STRING_SPACING_Y, x0, x0 + w));
+    const openers = ['SHALL I COMPARE THEE','ETERNAL SUMMER SHALL','GIVES LIFE TO THEE'];
+    for (let i = 0; i < 3; i++)
+      crows.push(new Crow(i, cx + (Math.random()-0.5)*300,
+                             cy - 100 + (Math.random()-0.5)*100, openers[i]));
+  } else {
+    strings.forEach((s, i) => { s.x0 = x0; s.x1 = x0 + w; s.y = y0 + i*STRING_SPACING_Y; });
+  }
+}
+layout();
+new ResizeObserver(layout).observe(canvas);
+
+addEventListener('mousemove', (e) => {
+  pmx = mouseX; pmy = mouseY;
+  mouseX = e.clientX; mouseY = e.clientY;
+  mouseActive = true;
+});
+document.addEventListener('mouseleave', () => { mouseActive = false; });
+document.addEventListener('visibilitychange', () => { visible = document.visibilityState === 'visible'; });
+
+// The wheel is a strum across every string at once — the one gesture the
+// pointer cannot make, and the only way to hear the whole instrument.
+addEventListener('wheel', (e) => {
+  const kick = Math.max(-9, Math.min(9, e.deltaY * 0.05));
+  for (const s of strings){
+    for (let i = 1; i < s.nodes.length - 1; i++){
+      const t = i / (s.nodes.length - 1);
+      s.nodes[i].y += kick * Math.sin(t * Math.PI);   // fixed at the ends
+    }
+  }
+  const now = performance.now();
+  if (words.length < MAX_ALOFT && now - lastSpawn > SPAWN_COOLDOWN_MS && Math.abs(kick) > 1){
+    const s = strings[Math.floor(Math.random() * strings.length)];
+    const n = s.nodes[Math.floor(s.nodes.length / 2)];
+    words.push(new Word(n.x, n.y, VOCAB[Math.floor(Math.random()*VOCAB.length)]));
+    lastSpawn = now;
+  }
+}, { passive: true });
+
+function paper(w, h, cx, cy){
+  ctx.fillStyle = '#d6c8b3';
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(184,115,81,0.16)';
+  ctx.beginPath(); ctx.arc(cx-120, cy-80, 210, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(156,179,168,0.15)';
+  ctx.beginPath(); ctx.arc(cx+100, cy-140, 160, 0, Math.PI*2); ctx.fill();
+  // Deterministic fibre specks: seeded from the index, so the grain is
+  // identical every frame and every reload. Random() here would boil.
+  ctx.fillStyle = 'rgba(30,41,59,0.08)';
+  ctx.strokeStyle = 'rgba(30,41,59,0.05)';
+  ctx.lineWidth = 0.6;
+  for (let i = 0; i < 35; i++){
+    const px = (w*0.15) + ((w*0.7) * Math.sin(i*713.82) + w) % (w*0.7);
+    const py = (h*0.15) + ((h*0.7) * Math.cos(i*289.41) + h) % (h*0.7);
+    ctx.beginPath(); ctx.arc(px, py, 1.3, 0, Math.PI*2); ctx.fill();
+    const a = (i*543.21) % (Math.PI*2), l = 5 + (i % 6);
+    ctx.beginPath(); ctx.moveTo(px, py);
+    ctx.lineTo(px + Math.cos(a)*l, py + Math.sin(a)*l*0.6); ctx.stroke();
+  }
+}
+
+function frame(){
+  if (!visible){ requestAnimationFrame(frame); return; }
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width, h = rect.height, cx = w/2, cy = h/2;
+  const t = performance.now();
+
+  paper(w, h, cx, cy);
+
+  // NOTE: the budget is re-read for EVERY string, not computed once for the
+  // frame. Nine strings can be inside the pointer radius at the same time,
+  // and a single shared flag lets all nine fire on one frame — the cap of 4
+  // was routinely exceeded by 50%. Caught by --lyre leg 2; see README
+  // §踩过的坑 #1.
+  for (const s of strings){
+    const canSpawn = words.length < MAX_ALOFT && (t - lastSpawn) > SPAWN_COOLDOWN_MS;
+    const hit = s.update(mouseX, mouseY, pmx, pmy, mouseActive, canSpawn);
+    if (hit && canSpawn){
+      words.push(new Word(hit.x, hit.y, VOCAB[Math.floor(Math.random()*VOCAB.length)]));
+      lastSpawn = t;
+    }
+    s.draw(ctx);
+  }
+
+  for (let i = words.length - 1; i >= 0; i--){
+    const wd = words[i];
+    wd.update(t);
+    if (wd.life <= 0 || wd.eaten || wd.y < -30) words.splice(i, 1);
+    else wd.draw(ctx);
+  }
+
+  let hunting = 0;
+  for (const c of crows){
+    if (!reduced) c.update(t, words, cx, cy);
+    c.draw(ctx, t, mouseActive, mouseX, mouseY);
+    if (c.hunting) hunting++;
+  }
+  totalCaught = crows.reduce((a, c) => a + c.caught, 0);
+
+  pmx = mouseX; pmy = mouseY;
+
+  if ((readoutTick = (readoutTick + 1) % 6) === 0){
+    const pt = mouseActive ? 'pointer active' : 'pointer idle';
+    if (rPointer.textContent !== pt) rPointer.textContent = pt;
+    rWords.textContent = words.length + ' aloft';
+    rHunt.textContent = hunting ? hunting + ' hunting' : 'crows idle';
+    rCaught.textContent = totalCaught + ' caught';
+  }
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ── oracle surface ──────────────────────────────────────────────────
+   READ-ONLY. No release(), no eat(), no teleport. --lyre strums with a
+   real pointer and waits for the ecology to do the rest.              */
+window.__probe = {
+  strings:    () => strings.length,
+  words:      () => words.map(w => ({ x:w.x, y:w.y, life:w.life, text:w.text, eaten:w.eaten })),
+  crows:      () => crows.map(c => ({ x:c.x, y:c.y, vx:c.vx, vy:c.vy,
+                                      hunting:c.hunting, caught:c.caught,
+                                      tail:c.tail.map(n => n.char).join('') })),
+  caught:     () => totalCaught,
+  stringNodes:(i) => strings[i].nodes.map(n => ({ x:n.x, y:n.y })),
+  stringRestY:(i) => strings[i].y,
+  maxAloft:   () => MAX_ALOFT,
+  cooldown:   () => SPAWN_COOLDOWN_MS,
+  turnLimit:  () => CROW_MAX_FORCE,
+};
+</script>
+</body>
+</html>

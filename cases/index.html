@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>motion-web · cases</title>
+<style>
+:root{
+  --ground:#f4f2ee; --panel:#fffdfa; --ink:#16150f; --dim:#6d6a5e;
+  --line:#d9d5c9; --accent:#8a3312; --tag:#eae6da;
+  --sans:ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--ground:#12110e;--panel:#1a1915;--ink:#efece2;--dim:#918c7c;
+        --line:#2e2c25;--accent:#e0763f;--tag:#26241d;}
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+     font-size:15px;line-height:1.55;overflow-x:hidden}
+
+header{max-width:1280px;margin:0 auto;padding:72px 32px 40px}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;
+         text-transform:uppercase;color:var(--dim);margin:0 0 18px}
+h1{margin:0;font-size:clamp(40px,7vw,76px);line-height:.98;letter-spacing:-.03em;font-weight:600}
+h1 em{font-style:normal;color:var(--accent)}
+.lede{max-width:56ch;margin:22px 0 0;color:var(--dim);font-size:16px}
+.rule{max-width:1280px;margin:0 auto;padding:0 32px}
+.rule hr{border:0;border-top:1px solid var(--line);margin:40px 0 0}
+
+.grid{max-width:1280px;margin:0 auto;padding:36px 32px 96px;
+      display:grid;gap:36px 28px;grid-template-columns:repeat(auto-fill,minmax(340px,1fr))}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:3px;
+      display:flex;flex-direction:column;overflow:hidden}
+.shot{position:relative;aspect-ratio:16/10;overflow:hidden;background:var(--tag);
+      border-bottom:1px solid var(--line)}
+.shot iframe{position:absolute;top:0;left:0;width:1440px;height:900px;border:0;
+             transform-origin:0 0;pointer-events:none}
+.shot[data-live="1"] iframe{pointer-events:auto}
+.placeholder{position:absolute;inset:0;display:grid;place-items:center;
+             font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:.1em}
+.badge{position:absolute;right:8px;top:8px;z-index:3;display:flex;gap:6px}
+.badge button{font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+   text-transform:uppercase;padding:5px 9px;border:1px solid var(--line);border-radius:2px;
+   background:var(--panel);color:var(--dim);cursor:pointer}
+.badge button:hover{color:var(--ink);border-color:var(--ink)}
+.shot[data-live="1"] .badge .live{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+.body{padding:18px 20px 20px;display:flex;flex-direction:column;flex:1;gap:10px}
+.name{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.name a{font-family:var(--mono);font-size:14px;color:var(--ink);text-decoration:none;
+        border-bottom:1px solid var(--line)}
+.name a:hover{border-color:var(--accent);color:var(--accent)}
+.n{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.teach{margin:0;font-size:14px;color:var(--ink);flex:1}
+.teach b{font-weight:600;color:var(--accent)}
+.meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.meta span{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+           background:var(--tag);color:var(--dim);padding:3px 7px;border-radius:2px}
+footer{max-width:1280px;margin:0 auto;padding:0 32px 80px;color:var(--dim);font-size:13px}
+footer code{font-family:var(--mono);font-size:12px;background:var(--tag);padding:2px 5px;border-radius:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">motion-web / cases</p>
+  <h1>Seven pages that <em>run</em>.</h1>
+  <p class="lede">每个 case 是一个单文件 HTML，跑得起来，过 <code>verify_case.py</code>。
+  机制层照搬，皮层一律不许照搬。点 LIVE 让某一格接管鼠标，点名字全屏打开。</p>
+</header>
+<div class="rule"><hr></div>
+
+<main class="grid" id="grid"></main>
+
+<footer>
+  <p>本地起服务：<code>python3 -m http.server 8899 -d cases/</code> ，然后开 <code>localhost:8899</code>。
+  每个 case 的 README 里有 设计系统 / 动效系统 / 判据 / 可照搬-不许照搬 / 踩过的坑 五段。</p>
+</footer>
+
+<script>
+const CASES = [
+  { dir:"string-clock", title:"DROOP! — no rigid hands",
+    teach:"<b>软体，但端点精确</b>。表针是两端钉住的松弛弹性绳，一根很硬的尖端弹簧保证读数是真的——笔画在撒谎，时间没有。Rods 作为退化情形一起发。",
+    meta:["rAF","--strings"] },
+  { dir:"ink-crowd", title:"Drawn, Not Rendered",
+    teach:"<b>墨线渲染层</b>。手写 WebGL2，没框架没 CDN：620 个实例胶囊体进 MRT + 深度目标，然后全屏 pass <b>只从深度不连续</b>画线，内部折痕关掉。两层噪声，一层每人静态，一层跑 11Hz 沸腾时钟对 60fps 渲染。",
+    meta:["WebGL2","--layer","--follow"] },
+  { dir:"press-stack", title:"Lathe — records with a spine",
+    teach:"<b>粘性叠层</b>，wheel-rail 的反面答案：原生滚动完全不动，九屏各自 sticky top:0，后一屏骑上来盖住前一屏。进度是从文档里读回来的，不是累加的。每张唱片封套都在 canvas 上画，零位图。",
+    meta:["DOM + Canvas 2D","--stack"] },
+  { dir:"wheel-rail", title:"Equal Length — wheel-driven rail",
+    teach:"<b>输入驱动的编排</b>，没有任何东西靠定时器播放。wheel 被 {passive:false} 劫持后缓动进一条平移的轨道，window.scrollY 始终是 0；指针驱动三个平面，景深比 7×；标签用 getPointAtLength 钉在曲线上。",
+    meta:["DOM + inline SVG","--rail"] },
+  { dir:"toy-flipbook", title:"TOYBOX — original design studio",
+    teach:"<b>不用渲染器的深度旋转</b>。四张挑过的预渲染 yaw 帧，用弹簧的 Math.round 硬切，全程没有任何 transition；抖动跑<b>11Hz 并保持</b>，对 60fps 渲染。一个归一化驱动量喂给每一层各自的增益，同一个标题的两行取相反符号。",
+    meta:["rAF","--flipbook"] },
+  { dir:"char-curtain", title:"Curtain — part it with the pointer",
+    teach:"<b>布是一组绳，不是一张网</b>。576 个字符挂在 24 条 Verlet 绳上，<b>列之间零水平约束</b>——这是指针能把它拨开而不是压出一个坑的唯一原因。锚点是弹簧不是钉子，回弹靠改写 oldX，速度同时映射到颜色和透明度，所以静帧也看得出涟漪在哪。",
+    meta:["Canvas 2D","--curtain"] },
+  { dir:"lyre-crows", title:"The Lyre & the Ink Crows",
+    teach:"<b>因果生态，不是时间轴</b>。拨弦抖出一个词，转向的墨鸦追上去吃掉它，然后<b>用吃到的词改写自己的尾巴</b>。源头限流加产物无条件衰减，是这个闭环不变成噪声的全部原因；转向钳制的是力不是速度，这才有转弯半径。",
+    meta:["Canvas 2D","--lyre"] },
+];
+
+const grid = document.getElementById("grid");
+CASES.forEach((c, i) => {
+  const el = document.createElement("article");
+  el.className = "card";
+  el.innerHTML = `
+    <div class="shot" data-dir="${c.dir}">
+      <div class="placeholder">${String(i+1).padStart(2,"0")} · ${c.dir}</div>
+      <div class="badge">
+        <button class="live" type="button">live</button>
+        <button class="open" type="button">open ↗</button>
+      </div>
+    </div>
+    <div class="body">
+      <div class="name">
+        <span class="n">${String(i+1).padStart(2,"0")}</span>
+        <a href="${c.dir}/index.html" target="_blank" rel="noopener">${c.dir}</a>
+        <span class="n">${c.title}</span>
+      </div>
+      <p class="teach">${c.teach}</p>
+      <div class="meta">${c.meta.map(m=>`<span>${m}</span>`).join("")}</div>
+    </div>`;
+  grid.appendChild(el);
+});
+
+// scale a 1440x900 viewport into whatever the card is
+function fit(shot){
+  const f = shot.querySelector("iframe");
+  if (!f) return;
+  f.style.transform = `scale(${shot.clientWidth / 1440})`;
+}
+
+// only the visible cards hold a live document; the rest are unloaded
+const io = new IntersectionObserver(entries => {
+  for (const e of entries){
+    const shot = e.target;
+    if (e.isIntersecting){
+      if (!shot.querySelector("iframe")){
+        const f = document.createElement("iframe");
+        f.src = shot.dataset.dir + "/index.html";
+        f.loading = "lazy";
+        f.setAttribute("scrolling","no");
+        f.title = shot.dataset.dir;
+        shot.appendChild(f);
+        requestAnimationFrame(()=>fit(shot));
+      }
+    } else if (shot.dataset.live !== "1"){
+      const f = shot.querySelector("iframe");
+      if (f) f.remove();
+    }
+  }
+}, { rootMargin: "300px 0px" });
+
+document.querySelectorAll(".shot").forEach(s => io.observe(s));
+
+// one card at a time may take the mouse, so the page still scrolls
+grid.addEventListener("click", ev => {
+  const shot = ev.target.closest(".shot");
+  if (!shot) return;
+  if (ev.target.classList.contains("open")){
+    window.open(shot.dataset.dir + "/index.html", "_blank", "noopener");
+    return;
+  }
+  if (ev.target.classList.contains("live")){
+    const on = shot.dataset.live === "1";
+    document.querySelectorAll('.shot[data-live="1"]').forEach(s => s.dataset.live = "0");
+    shot.dataset.live = on ? "0" : "1";
+  }
+});
+
+addEventListener("resize", () => document.querySelectorAll(".shot").forEach(fit));
+</script>
+</body>
+</html>

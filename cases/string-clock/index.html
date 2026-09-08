@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DROOP! — a clock with no rigid hands</title>
+<meta name="description" content="An analogue clock whose hands are slack elastic strings. The endpoint still tells the time; the curve refuses to.">
+<meta property="og:title" content="DROOP!">
+<meta property="og:description" content="An analogue clock whose hands are slack elastic strings.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23e9e9e9'/><path d='M16 24 Q9 20 10 9' stroke='%23111' stroke-width='2.6' fill='none' stroke-linecap='round'/><path d='M16 24 Q22 21 23 15' stroke='%23d81b2d' stroke-width='2.6' fill='none' stroke-linecap='round'/></svg>">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════
+   MECHANISM / SKIN BANNER  ·  cases/AUTHORING.md Phase 3
+   ──────────────────────────────────────────────────────────────────────
+   MECHANISM (lift verbatim):  every rule tagged  @mechanism  below —
+     the .face sizing box, the fixed 800×800 logical space, .hand geometry,
+     and the reduced-motion block. These encode the coordinate contract the
+     JS depends on. Changing them silently breaks the physics.
+   SKIN (do not lift — lift the REASONING, see README §可以照搬/不许照搬):
+     every colour token, the type scale, the panel layout, the copy.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root{
+  /* Palette — measured off the reference frames, not guessed.
+     8 values, 1 accent. See README §设计系统. */
+  --ground:  #e9e9e9;   /* 90.7% of every frame */
+  --surface: #fcfcfc;   /* every raised pill */
+  --track:   #dddddd;   /* inset / unselected track */
+  --label:   #5a5a5a;   /* section labels */
+  --muted:   #616161;   /* inactive control text */
+  --ink:     #141414;   /* strings, active text */
+  --tick-hr: #717171;
+  --tick-mn: #c1c1c1;
+  --numeral: #969696;
+  --accent:  #d81b2d;
+
+  /* One shadow level. Creative pages measure 0 shadowed elements, product
+     pages 17.5 (32-site measurement run). This page is the hybrid:
+     product components, creative canvas — so: exactly one elevation. */
+  --lift: 0 1px 2px rgba(0,0,0,.05), 0 6px 16px rgba(0,0,0,.06);
+
+  /* Two control heights, measured: 54px primary, 41px inset. */
+  --h-ctl: 54px;
+  --h-ins: 41px;
+  --r-pill: 999px;
+  --r-soft: 20px;
+
+  --sans: "Helvetica Neue", Inter, system-ui, -apple-system, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Space scale — multiples of 4, per the measured common floor. */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px; --s12: 48px;
+}
+
+*{ box-sizing: border-box; }
+html{ -webkit-text-size-adjust: 100%; }
+body{
+  margin: 0;
+  font: 400 14px/1.55 var(--sans);
+  color: var(--ink);
+  background: var(--ground);
+  overflow-x: hidden;
+}
+button{ font: inherit; color: inherit; }
+
+/* ── stage ─────────────────────────────────────────────────────────── */
+.stage{
+  position: relative;
+  display: grid;
+  grid-template-columns: 344px minmax(0,1fr);
+  align-items: center;
+  min-height: 100vh;
+  min-height: 100svh;
+  padding: var(--s8) var(--s8) var(--s12);
+}
+
+/* ── preferences panel · product dialect ───────────────────────────── */
+.panel{ display: grid; gap: var(--s6); align-content: center; max-width: 344px; }
+.panel .grp{ display: grid; gap: var(--s3); }
+.panel .lbl{
+  font-size: 12px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: var(--label);
+}
+.iconbtn{
+  width: 73px; height: var(--h-ctl);
+  border: 0; border-radius: var(--r-soft);
+  background: var(--surface); box-shadow: var(--lift);
+  display: grid; place-items: center; cursor: pointer;
+  transition: transform .18s cubic-bezier(.2,.8,.3,1), box-shadow .18s;
+}
+.iconbtn:hover{ transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,.06), 0 10px 22px rgba(0,0,0,.08); }
+.iconbtn:active{ transform: translateY(0) scale(.97); }
+.iconbtn svg{ width: 22px; height: 22px; }
+
+.mode{
+  height: var(--h-ctl); width: 228px;
+  display: flex; align-items: center; gap: var(--s3);
+  padding: 0 var(--s6); border: 0; border-radius: var(--r-pill);
+  background: var(--surface); box-shadow: var(--lift); cursor: pointer;
+  transition: transform .18s cubic-bezier(.2,.8,.3,1);
+}
+.mode:hover{ transform: translateY(-1px); }
+.mode:active{ transform: scale(.985); }
+.mode .k{ font-size: 15px; color: var(--muted); letter-spacing: .02em; }
+.mode .v{ font-size: 17px; font-weight: 700; margin-left: auto; }
+.mode .plus{ font-size: 17px; color: var(--muted); }
+
+.swatches{ display: flex; gap: 12px; }
+.sw{
+  width: var(--h-ctl); height: var(--h-ctl); border: 0; border-radius: 50%;
+  background: var(--surface); box-shadow: var(--lift);
+  display: grid; place-items: center; cursor: pointer;
+  transition: transform .18s cubic-bezier(.2,.8,.3,1);
+}
+.sw:hover{ transform: translateY(-2px); }
+.sw i{ width: 26px; height: 26px; border-radius: 50%; background: var(--c); display: block; }
+.sw[data-c="none"] i{ background: var(--ground); box-shadow: inset 0 0 0 1.5px var(--track); }
+.sw[aria-checked="true"]{ box-shadow: var(--lift), 0 0 0 2px var(--ink); }
+
+.seg{
+  height: var(--h-ins); width: 296px;
+  display: grid; grid-template-columns: repeat(3,1fr);
+  background: var(--track); border-radius: var(--r-pill); padding: 0;
+  position: relative; isolation: isolate;
+}
+.seg .thumb{
+  position: absolute; inset: 0 auto 0 0; width: calc(100%/3);
+  background: var(--surface); border-radius: var(--r-pill);
+  box-shadow: var(--lift); z-index: -1;
+  transition: transform .28s cubic-bezier(.2,.8,.3,1);
+}
+.seg button{
+  border: 0; background: none; cursor: pointer; border-radius: var(--r-pill);
+  font-size: 15px; color: var(--muted); transition: color .2s, font-weight .2s;
+}
+.seg button[aria-pressed="true"]{ color: var(--ink); font-weight: 700; }
+
+.slack{
+  position: relative; height: var(--h-ins); width: 296px;
+  border-radius: var(--r-pill); background: var(--track);
+  box-shadow: var(--lift); overflow: hidden;
+}
+.slack .fill{
+  position: absolute; inset: 0 auto 0 0; width: 50%;
+  background: var(--surface); border-radius: var(--r-pill);
+}
+.slack input{
+  -webkit-appearance: none; appearance: none;
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  margin: 0; background: none; cursor: ew-resize;
+}
+.slack input::-webkit-slider-thumb{
+  -webkit-appearance: none; width: 4px; height: var(--h-ins);
+  background: var(--tick-mn); border-radius: 2px; border: 0;
+}
+.slack input::-moz-range-thumb{
+  width: 4px; height: var(--h-ins);
+  background: var(--tick-mn); border-radius: 2px; border: 0;
+}
+.slack .val{
+  position: absolute; right: var(--s6); top: 50%; transform: translateY(-50%);
+  font-size: 15px; font-weight: 700; pointer-events: none;
+}
+.slack .cap{
+  position: absolute; left: var(--s6); top: 50%; transform: translateY(-50%);
+  font-size: 15px; color: var(--muted); pointer-events: none;
+}
+
+.colophon{ font-size: 12px; color: var(--muted); line-height: 1.5; }
+.colophon h1{ margin: 0 0 2px; font-size: 15px; font-weight: 700;
+              color: var(--label); letter-spacing: .02em; }
+.colophon p{ margin: 0; }
+
+/* ── the watch ─────────────────────────────────────────────────────── */
+/* @mechanism — the sizing box and the 800×800 logical space.
+   Everything the JS computes lives in viewBox units; the box only scales. */
+.watch{
+  /* @mechanism — --dial must contain NO percentage. It is used both as a
+     width AND inside translateY() for the numerals; a % there resolves
+     against the numeral's own box, so min(...,100%,...) collapses to ~64px
+     and all four numerals pile onto the hub. 470px = panel + gutters. */
+  --dial: min(84vh, calc(100vw - 470px), 820px);
+  position: relative;
+  width: var(--dial); aspect-ratio: 1;
+  margin-inline: auto;
+  touch-action: none;
+}
+.face{ position: absolute; inset: 0; width: 100%; height: 100%; cursor: grab; display: block; }
+.face.grabbing{ cursor: grabbing; }
+.numerals{ position: absolute; inset: 0; pointer-events: none; }
+.num{
+  position: absolute; left: 50%; top: 50%;
+  font-size: 72px; font-weight: 700; line-height: 1;
+  color: #d8d8d8; -webkit-text-stroke: 2.5px var(--numeral);
+  transform: translate(-50%,-50%) rotate(var(--a))
+             translateY(calc(-0.40 * var(--dial))) rotate(calc(-1 * var(--a)));
+}
+/* @mechanism — 0.40 x --dial == radius 320 in the 800-unit box, where the
+   reference sets its numerals (measured: 320css). It must be a length, NOT a
+   percentage: a percentage translate resolves against the ELEMENT's own box,
+   so translateY(-40%) moved each numeral 26px and piled all four on the hub. */
+
+.date{
+  position: absolute; right: 0; bottom: -34px;
+  font-size: 12px; color: var(--muted); letter-spacing: .02em;
+}
+.hint{
+  position: absolute; left: 0; bottom: -34px;
+  font-size: 12px; color: var(--muted);
+  transition: opacity .3s;
+}
+.watch:hover .hint{ opacity: .35; }
+
+.sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip-path: inset(50%); white-space:nowrap; }
+
+/* ── below the fold: one narrow editorial column ───────────────────── */
+.below{
+  max-width: 62ch; margin: 0 auto; padding: var(--s12) var(--s8) 96px;
+  border-top: 1px solid var(--track);
+}
+.below h2{
+  margin: 0 0 var(--s6); font-size: 26px; font-weight: 700; letter-spacing: -.01em;
+}
+.below p{ margin: 0 0 var(--s4); color: #3a3a3a; }
+.below p:last-child{ margin-bottom: 0; }
+.below code{ font: 12px/1 var(--mono); background: var(--surface); padding: 2px 6px; border-radius: 5px; }
+
+footer{
+  padding: 0 var(--s8) var(--s8);
+  font-size: 12px; color: var(--muted);
+  display: flex; gap: var(--s6); flex-wrap: wrap;
+}
+footer a{ color: var(--muted); }
+
+/* ── responsive: panel becomes a scrolling rail under the dial ─────── */
+@media (max-width: 900px){
+  .stage{
+    grid-template-columns: minmax(0,1fr);
+    gap: var(--s8);
+    padding: var(--s6) var(--s4) var(--s12);
+    min-height: 0;
+  }
+  .watch{ --dial: min(86vw, 560px); order: -1; }
+  .panel{ max-width: none; justify-items: start; }
+  .mode, .seg, .slack{ width: min(296px, 100%); }
+  .swatches{ flex-wrap: wrap; }
+  .below{ padding-inline: var(--s4); }
+  footer{ padding-inline: var(--s4); }
+}
+@media (max-width: 380px){
+  :root{ --h-ctl: 48px; --h-ins: 38px; }
+  .swatches{ gap: 8px; }
+  .num{ font-size: 56px; }
+}
+
+/* @mechanism — reduced motion gets a DESIGNED still, not a disabled page:
+   the strings are drawn at their analytic rest sag and re-drawn once a
+   second. Nothing is hidden, nothing is frozen mid-transition. */
+@media (prefers-reduced-motion: reduce){
+  *{ transition-duration: .01ms !important; }
+  .face{ cursor: default; }
+}
+</style>
+</head>
+
+<body>
+
+<main>
+<section class="stage" aria-label="String clock">
+
+  <aside class="panel" aria-label="Preferences">
+    <button class="iconbtn" id="cycleTheme" aria-label="Cycle string colour">
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+        <path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.7 1.6-1.5 0-.9-.8-1.3-.8-2.1 0-.7.6-1.2 1.4-1.2H16a5 5 0 0 0 5-5c0-4.4-4-8-9-8Z"/>
+        <circle cx="8" cy="10" r="1.1" fill="currentColor" stroke="none"/>
+        <circle cx="12" cy="7.5" r="1.1" fill="currentColor" stroke="none"/>
+        <circle cx="16" cy="10" r="1.1" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+
+    <div class="grp">
+      <span class="lbl">System</span>
+      <button class="mode" id="mode" aria-label="Hand mode">
+        <span class="k">MODE</span><span class="v" id="modeV">Strings</span><span class="plus" aria-hidden="true">+</span>
+      </button>
+      <div class="swatches" role="radiogroup" aria-label="Second-hand colour" id="sw">
+        <button class="sw" data-c="none" role="radio" aria-checked="false" aria-label="No accent"><i style="--c:transparent"></i></button>
+        <button class="sw" data-c="#141414" role="radio" aria-checked="false" aria-label="Ink"><i style="--c:#141414"></i></button>
+        <button class="sw" data-c="#8fbf7a" role="radio" aria-checked="false" aria-label="Green"><i style="--c:#8fbf7a"></i></button>
+        <button class="sw" data-c="#e8d94a" role="radio" aria-checked="false" aria-label="Yellow"><i style="--c:#e8d94a"></i></button>
+        <button class="sw" data-c="#d81b2d" role="radio" aria-checked="true" aria-label="Red"><i style="--c:#d81b2d"></i></button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <span class="lbl">Motion</span>
+      <div class="seg" id="sway" role="group" aria-label="Sway">
+        <span class="thumb" id="swayThumb"></span>
+        <button type="button" data-i="0" aria-pressed="false">Calm</button>
+        <button type="button" data-i="1" aria-pressed="true">Normal</button>
+        <button type="button" data-i="2" aria-pressed="false">Windy</button>
+      </div>
+      <div class="slack">
+        <span class="fill" id="slackFill"></span>
+        <span class="cap">SLACK</span>
+        <input id="slack" type="range" min="0" max="100" step="1" value="50" aria-label="Slack">
+        <span class="val" id="slackV">50%</span>
+      </div>
+    </div>
+
+    <header class="colophon">
+      <h1>DROOP!</h1>
+      <p>a clock with no rigid hands.<br>Replicated for motion-web from a video reference — rung 2, vanilla rAF, no library.</p>
+    </header>
+  </aside>
+
+  <div class="watch" id="watch">
+    <svg class="face" id="face" viewBox="0 0 800 800" aria-hidden="true">
+      <g id="ticks"></g>
+      <g id="strings" fill="none" stroke-linecap="round"></g>
+      <g id="caps"></g>
+    </svg>
+    <div class="numerals" aria-hidden="true">
+      <span class="num" style="--a:0deg">12</span>
+      <span class="num" style="--a:90deg">3</span>
+      <span class="num" style="--a:180deg">6</span>
+      <span class="num" style="--a:270deg">9</span>
+    </div>
+    <p class="hint" id="hint">drag a string end, or the knot</p>
+    <p class="date" id="date"></p>
+    <p class="sr">The time is <time id="srtime"></time>.</p>
+  </div>
+
+</section>
+
+<section class="below">
+  <h2>The endpoint tells the time. The curve refuses to.</h2>
+  <p>A clock hand is a line from the centre to an angle. Take away the rigidity and you still have
+     both ends in exactly the right place &mdash; only the 300&nbsp;pixels in between stop agreeing
+     to be a line. That is the whole design: the information is unchanged, and it becomes almost
+     unreadable, because a person reads the <em>direction of the stroke</em>, not the position of
+     its endpoint.</p>
+  <p>The strings are elastic, not inextensible. That is measured, not stylistic: in the reference,
+     a dragged hand stretched to roughly three times its resting arc and came back. A rigid
+     verlet chain cannot do that, so the constraint solver here runs few iterations at low
+     stiffness and caps per-segment stretch instead of forbidding it.</p>
+  <p>Set <code>MODE</code> to <em>Rods</em> to remove the slack and watch the joke evaporate:
+     the same clock, the same physics loop, instantly legible and completely uninteresting. That
+     comparison is the case &mdash; it is also what the <code>--strings</code> oracle asserts.</p>
+</section>
+</main>
+
+<footer>
+  <span>motion-web case &middot; string-clock</span>
+  <span>Reference: a video clip by @itshassco &mdash; replicated, not copied.</span>
+</footer>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════
+   MECHANISM / SKIN BANNER  ·  cases/AUTHORING.md Phase 3
+   ──────────────────────────────────────────────────────────────────────
+   MECHANISM — lift verbatim:
+     Sim, Hand, step(), constrain(), pathOf(), the fixed-timestep
+     accumulator, the grab/drag/release pointer path, and the __probe
+     surface. This is the reusable technique: a slack elastic string
+     pinned at BOTH ends where one end is driven by data.
+   SKIN — do not lift the values; lift the reasoning in README §可照搬:
+     HANDS lengths, GRAV/DAMP/K_TIP numbers, colours, copy, panel layout.
+   ══════════════════════════════════════════════════════════════════════ */
+(() => {
+'use strict';
+
+const CX = 400, CY = 400;          // @mechanism: logical centre of the 800×800 box
+const R_TICK = 366;                // outer tick radius, measured 366css on the reference
+
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
+
+/* ── dial furniture ────────────────────────────────────────────────── */
+const NS = 'http://www.w3.org/2000/svg';
+function line(x1,y1,x2,y2,w,c){
+  const l = document.createElementNS(NS,'line');
+  l.setAttribute('x1',x1.toFixed(2)); l.setAttribute('y1',y1.toFixed(2));
+  l.setAttribute('x2',x2.toFixed(2)); l.setAttribute('y2',y2.toFixed(2));
+  l.setAttribute('stroke',c); l.setAttribute('stroke-width',w);
+  l.setAttribute('stroke-linecap','round');
+  return l;
+}
+(function ticks(){
+  const g = document.getElementById('ticks');
+  for (let i = 0; i < 60; i++){
+    const a = i * Math.PI / 30, s = Math.sin(a), c = -Math.cos(a);
+    const hour = i % 5 === 0, card = i % 15 === 0;
+    const outer = card ? R_TICK + 14 : hour ? R_TICK : R_TICK + 22;
+    const len   = card ? 28 : hour ? 20 : 9;
+    const w     = card ? 8  : hour ? 7  : 2.5;
+    const col   = hour ? '#717171' : '#c1c1c1';
+    g.appendChild(line(CX + s*(outer-len), CY + c*(outer-len), CX + s*outer, CY + c*outer, w, col));
+  }
+})();
+
+/* ── the strings ───────────────────────────────────────────────────── */
+/* R      hand length (logical px) — the tip sits here, exactly on the angle
+   n      node count; more nodes = smoother sag, linearly more work
+   turns  full turns per revolution driver, used only for the trailing bias */
+const HANDS = [
+  { key:'hour',   R:158, n:14, w:6.5, accent:false },
+  { key:'minute', R:252, n:18, w:6.5, accent:false },
+  { key:'second', R:308, n:22, w:6.0, accent:true  },
+];
+
+const GRAV = { calm: 1200, normal: 2200, windy: 2200 };
+const WIND = { calm: 0,    normal: 0,    windy: 900  };
+const DAMP  = 0.994;      // per 1/120s step
+const K_TIP = 1600;       // tip spring, 1/s²  → steady gravity droop = GRAV/K_TIP ≈ 1.4px
+const C_TIP = 52;         // tip damping
+const K_HUB = 900, C_HUB = 40;
+const ITERS = 3, STIFF = 0.5;      // deliberately soft: the reference stretches ~3× under a drag
+const ROD_ITERS = 10, ROD_STIFF = 1.0;   // Rods is a different object, not slack=0
+const MAX_STRETCH = 3.0;           // per-segment cap — the only thing that forbids spaghetti
+const BIAS = 110;                  // px/s², trailing bow so a vertical string buckles predictably
+const HUB_REACH = 300;             // how far the knot can be pulled from centre
+const TIP_REACH = 380;             // …and how far a tip can leave the dial (R_TICK=366)
+const WALL = 440;                  // the watch has an edge; a whipped string may not leave it
+const DT = 1/120;
+
+const state = {
+  mode: 'strings',            // 'strings' | 'rods'
+  slack: 0.50,                // slider 0..1  → slackRatio 0..0.55
+  sway: 'normal',
+  accent: '#d81b2d',
+  pinned: null,               // {h,m,s} when the oracle pins the clock
+  grab: null,                 // {hand|'hub', x, y}
+};
+const slackRatio = () => state.mode === 'rods' ? 0 : state.slack * 0.55;
+
+class Hand {
+  constructor(cfg){
+    Object.assign(this, cfg);
+    this.x = new Float64Array(this.n); this.y = new Float64Array(this.n);
+    this.px = new Float64Array(this.n); this.py = new Float64Array(this.n);
+    this.tipX = CX; this.tipY = CY - this.R; this.tipVX = 0; this.tipVY = 0;
+    this.reset(0);
+  }
+  seg(){ return this.R * (1 + slackRatio()) / (this.n - 1); }
+  /* Lay the nodes on a slightly trailing arc so a vertical string has a side
+     to buckle to. A perfectly straight initial chain under axial gravity has
+     no preferred direction and jitters — this is a real failure, see README. */
+  reset(theta){
+    const s = Math.sin(theta), c = -Math.cos(theta);
+    const tx = CX + s*this.R, ty = CY + c*this.R;
+    this.tipX = tx; this.tipY = ty; this.tipVX = this.tipVY = 0;
+    const bowX = -c, bowY = s;                     // unit vector, trailing side
+    const bow = this.R * slackRatio() * 0.9;
+    for (let i = 0; i < this.n; i++){
+      const t = i / (this.n - 1);
+      const k = Math.sin(t * Math.PI) * bow;
+      this.x[i] = this.px[i] = CX + (tx-CX)*t + bowX*k;
+      this.y[i] = this.py[i] = CY + (ty-CY)*t + bowY*k;
+    }
+  }
+  targetXY(theta){
+    return [CX + Math.sin(theta)*this.R, CY - Math.cos(theta)*this.R];
+  }
+}
+
+const hands = HANDS.map(h => new Hand(h));
+const hub = { x: CX, y: CY, vx: 0, vy: 0 };
+
+function clampTo(x, y, ox, oy, r){
+  const dx = x - ox, dy = y - oy, d = Math.hypot(dx, dy);
+  if (d <= r || d < 1e-6) return [x, y];
+  return [ox + dx/d*r, oy + dy/d*r];
+}
+
+/* ── one fixed step ────────────────────────────────────────────────── */
+function step(angles){
+  /* Rods is not "Strings with the slack turned down" — a soft solver cannot
+     hold a taut line, so slack 0 alone still sagged 1.108x (measured). Rods
+     removes the loads and stiffens the solver. */
+  const rods = state.mode === 'rods';
+  const g = rods ? 0 : GRAV[state.sway], windAmp = rods ? 0 : WIND[state.sway];
+  simT += DT;
+  const wind = windAmp * Math.sin(simT * 1.7) * Math.sin(simT * 0.41 + 1.3);
+
+  /* hub: spring to centre, or hard-follow the pointer while grabbed */
+  if (state.grab && state.grab.hand === 'hub'){
+    const [gxh, gyh] = clampTo(state.grab.x, state.grab.y, CX, CY, HUB_REACH);
+    hub.x = gxh; hub.y = gyh; hub.vx = hub.vy = 0;
+  } else {
+    const ax = K_HUB*(CX - hub.x) - C_HUB*hub.vx;
+    const ay = K_HUB*(CY - hub.y) - C_HUB*hub.vy;
+    hub.vx += ax*DT; hub.vy += ay*DT;
+    hub.x += hub.vx*DT; hub.y += hub.vy*DT;
+  }
+
+  for (let hi = 0; hi < hands.length; hi++){
+    const H = hands[hi], theta = angles[hi];
+    const [gx, gy] = H.targetXY(theta);
+
+    /* tip: strong spring to the true angle, or the pointer while grabbed */
+    if (state.grab && state.grab.hand === H.key){
+      /* A string has a reach, and the watch has an edge. Clamping only to the
+         reach still let the pointer leave the canvas (measured: chord 1084 in a
+         800-unit box), and a chain that near its cap total cannot be solved in
+         the sweeps available — 4.7x rest arc. Clamp to the dial FIRST, then to
+         the reach; both clamps together keep the chain far from taut. */
+      const [cx2, cy2] = clampTo(state.grab.x, state.grab.y, CX, CY, TIP_REACH);
+      const [tx2, ty2] = clampTo(cx2, cy2, hub.x, hub.y,
+                                 H.R * (1 + slackRatio()) * MAX_STRETCH * 0.92);
+      H.tipX = tx2; H.tipY = ty2; H.tipVX = H.tipVY = 0;
+    } else {
+      const ax = K_TIP*(gx - H.tipX) - C_TIP*H.tipVX;
+      const ay = K_TIP*(gy - H.tipY) - C_TIP*H.tipVY + g*0;   // tip does NOT droop
+      H.tipVX += ax*DT; H.tipVY += ay*DT;
+      H.tipX += H.tipVX*DT; H.tipY += H.tipVY*DT;
+    }
+
+    /* interior nodes: verlet + gravity + wind + trailing bias */
+    const bias = rods ? 0 : BIAS;
+    const bx = -(-Math.cos(theta)), by = Math.sin(theta);     // trailing unit vector
+    const last = H.n - 1;
+    for (let i = 1; i < last; i++){
+      const vx = (H.x[i] - H.px[i]) * DAMP;
+      const vy = (H.y[i] - H.py[i]) * DAMP;
+      H.px[i] = H.x[i]; H.py[i] = H.y[i];
+      H.x[i] += vx + (wind + bx*bias) * DT*DT;
+      H.y[i] += vy + (g    + by*bias) * DT*DT;
+    }
+    /* ends are driven, not simulated */
+    H.x[0] = hub.x; H.y[0] = hub.y; H.px[0] = hub.x; H.py[0] = hub.y;
+    H.x[last] = H.tipX; H.y[last] = H.tipY; H.px[last] = H.tipX; H.py[last] = H.tipY;
+
+    constrain(H);
+  }
+}
+
+/* Soft distance projection. ITERS×STIFF is chosen LOW on purpose: the
+   reference's strings visibly stretch when flung. A rigid solver (8 iters at
+   0.9) is effectively inextensible and reads as a chain, not a string. */
+function constrain(H){
+  const rods = state.mode === 'rods';
+  const iters = rods ? ROD_ITERS : ITERS, stiff = rods ? ROD_STIFF : STIFF;
+  const rest = H.seg(), last = H.n - 1, maxLen = rest * MAX_STRETCH;
+  for (let it = 0; it < iters; it++){
+    for (let i = 0; i < last; i++){
+      const j = i + 1;
+      let dx = H.x[j] - H.x[i], dy = H.y[j] - H.y[i];
+      let d = Math.hypot(dx, dy);
+      if (d < 1e-6){ dx = 0.001; dy = 0; d = 0.001; }
+      const diff = (d - rest) / d * stiff;
+      /* End nodes are driven; give them 1/4 weight so string tension barely
+         moves them but a hard drag still transmits down the chain. */
+      const wi = i === 0    ? 0.25 : 1;
+      const wj = j === last ? 0.25 : 1;
+      const tot = wi + wj;
+      H.x[i] += dx * diff * (wi/tot); H.y[i] += dy * diff * (wi/tot);
+      H.x[j] -= dx * diff * (wj/tot); H.y[j] -= dy * diff * (wj/tot);
+    }
+  }
+  /* Hard cap — the single rule that makes "no spaghetti" true at any speed.
+     It must sweep BOTH ways: a one-directional pass moves the violation
+     inward by exactly one segment per frame, so a fast drag leaves a long
+     over-stretched tail behind it (measured 8.3x rest arc before this). */
+  for (let pass = 0; pass < 2; pass++){
+    for (let i = 0; i < last; i++) capSeg(H, i, last, maxLen);
+    for (let i = last - 1; i >= 0; i--) capSeg(H, i, last, maxLen);
+  }
+  /* The watch has an edge. A 240px/step whip threw interior nodes clean off
+     the canvas (measured: 51 samples past r=560) — the string visibly gets cut
+     by the viewBox. This is a wall with zero restitution: clamp the position
+     and kill the velocity by moving the previous position with it, so no energy
+     is injected. Ends are driven and already clamped, so skip them. */
+  for (let i = 1; i < last; i++){
+    const dx = H.x[i] - CX, dy = H.y[i] - CY, d = Math.hypot(dx, dy);
+    if (d > WALL){
+      const nx = CX + dx/d*WALL, ny = CY + dy/d*WALL;
+      H.px[i] += nx - H.x[i]; H.py[i] += ny - H.y[i];
+      H.x[i] = nx; H.y[i] = ny;
+    }
+  }
+  H.x[0] = hub.x; H.y[0] = hub.y;
+  H.x[last] = H.tipX; H.y[last] = H.tipY;
+}
+
+function capSeg(H, i, last, maxLen){
+  const j = i + 1;
+  const dx = H.x[j] - H.x[i], dy = H.y[j] - H.y[i];
+  const d = Math.hypot(dx, dy);
+  if (d <= maxLen) return;
+  const k = (d - maxLen) / d;
+  const wi = i === 0 ? 0 : 1, wj = j === last ? 0 : 1;
+  const tot = (wi + wj) || 1;
+  H.x[i] += dx*k*(wi/tot); H.y[i] += dy*k*(wi/tot);
+  H.x[j] -= dx*k*(wj/tot); H.y[j] -= dy*k*(wj/tot);
+}
+
+/* Analytic rest shape — used only under reduced motion. Same endpoints,
+   same sag depth, no loop. A designed still, not a frozen frame. */
+function restShape(H, theta){
+  const [tx, ty] = H.targetXY(theta);
+  const bowX = Math.cos(theta), bowY = Math.sin(theta);
+  const bow = H.R * slackRatio() * 0.62;
+  const last = H.n - 1;
+  for (let i = 0; i <= last; i++){
+    const t = i/last, k = Math.sin(t*Math.PI)*bow;
+    H.x[i] = CX + (tx-CX)*t + bowX*k;
+    H.y[i] = CY + (ty-CY)*t + bowY*k + Math.sin(t*Math.PI)*bow*0.35;
+  }
+  H.tipX = tx; H.tipY = ty;
+}
+
+/* ── render ────────────────────────────────────────────────────────── */
+function pathOf(H){
+  const n = H.n, X = H.x, Y = H.y;
+  let d = `M${X[0].toFixed(2)} ${Y[0].toFixed(2)}`;
+  for (let i = 0; i < n - 1; i++){
+    const p0x = X[Math.max(0,i-1)],   p0y = Y[Math.max(0,i-1)];
+    const p1x = X[i],                 p1y = Y[i];
+    const p2x = X[i+1],               p2y = Y[i+1];
+    const p3x = X[Math.min(n-1,i+2)], p3y = Y[Math.min(n-1,i+2)];
+    d += `C${(p1x+(p2x-p0x)/6).toFixed(2)} ${(p1y+(p2y-p0y)/6).toFixed(2)},`
+       + `${(p2x-(p3x-p1x)/6).toFixed(2)} ${(p2y-(p3y-p1y)/6).toFixed(2)},`
+       + `${p2x.toFixed(2)} ${p2y.toFixed(2)}`;
+  }
+  return d;
+}
+
+const gStrings = document.getElementById('strings');
+const gCaps    = document.getElementById('caps');
+const paths = hands.map(H => {
+  const p = document.createElementNS(NS,'path');
+  p.setAttribute('stroke-width', H.w);
+  gStrings.appendChild(p);
+  return p;
+});
+const tips = hands.map(() => {
+  const c = document.createElementNS(NS,'circle');
+  c.setAttribute('r', 9);
+  gCaps.appendChild(c);
+  return c;
+});
+const rings = hands.map(() => {
+  const c = document.createElementNS(NS,'circle');
+  c.setAttribute('r', 15); c.setAttribute('fill','none');
+  c.setAttribute('stroke-width', 2.5); c.setAttribute('opacity', 0);
+  gCaps.appendChild(c);
+  return c;
+});
+const hubDot = document.createElementNS(NS,'circle');
+hubDot.setAttribute('r', 11); gCaps.appendChild(hubDot);
+
+let hoverKey = null;
+
+function paint(){
+  const ink = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() || '#141414';
+  hands.forEach((H, i) => {
+    const col = H.accent ? state.accent : ink;
+    paths[i].setAttribute('d', pathOf(H));
+    paths[i].setAttribute('stroke', col);
+    tips[i].setAttribute('cx', H.tipX.toFixed(2));
+    tips[i].setAttribute('cy', H.tipY.toFixed(2));
+    tips[i].setAttribute('fill', col);
+    rings[i].setAttribute('cx', H.tipX.toFixed(2));
+    rings[i].setAttribute('cy', H.tipY.toFixed(2));
+    rings[i].setAttribute('stroke', col);
+    const on = hoverKey === H.key || (state.grab && state.grab.hand === H.key);
+    rings[i].setAttribute('opacity', on ? 0.55 : 0);
+  });
+  hubDot.setAttribute('cx', hub.x.toFixed(2));
+  hubDot.setAttribute('cy', hub.y.toFixed(2));
+  hubDot.setAttribute('fill', ink);
+}
+
+/* ── clock ─────────────────────────────────────────────────────────── */
+function nowParts(){
+  if (state.pinned) return state.pinned;
+  const d = new Date();
+  return { h: d.getHours(), m: d.getMinutes(), s: d.getSeconds() + d.getMilliseconds()/1000 };
+}
+function angles(){
+  const { h, m, s } = nowParts();
+  return [
+    ((h % 12) + m/60) * Math.PI/6,
+    (m + s/60) * Math.PI/30,
+    s * Math.PI/30,
+  ];
+}
+
+/* ── loop ──────────────────────────────────────────────────────────── */
+let simT = 0, acc = 0, prev = performance.now();
+function frame(t){
+  const dt = Math.min((t - prev)/1000, 0.1); prev = t;
+  const a = angles();
+  if (REDUCED.matches){
+    hands.forEach((H, i) => restShape(H, a[i]));
+  } else {
+    acc += dt;
+    let guard = 0;
+    while (acc >= DT && guard++ < 40){ step(a); acc -= DT; }
+  }
+  paint();
+  requestAnimationFrame(frame);
+}
+
+/* ── grab / drag / release — the real commit path ──────────────────── */
+const face = document.getElementById('face');
+function toLocal(e){
+  const r = face.getBoundingClientRect();
+  return [ (e.clientX - r.left) / r.width * 800, (e.clientY - r.top) / r.height * 800 ];
+}
+function nearest(x, y){
+  let best = null, bd = 40;
+  for (const H of hands){
+    const d = Math.hypot(H.tipX - x, H.tipY - y);
+    if (d < bd){ bd = d; best = H.key; }
+  }
+  const dh = Math.hypot(hub.x - x, hub.y - y);
+  if (dh < bd){ best = 'hub'; }
+  return best;
+}
+face.addEventListener('pointerdown', e => {
+  if (REDUCED.matches) return;
+  const [x, y] = toLocal(e);
+  const k = nearest(x, y);
+  if (!k) return;
+  state.grab = { hand: k, x, y };
+  face.classList.add('grabbing');
+  face.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+face.addEventListener('pointermove', e => {
+  const [x, y] = toLocal(e);
+  if (state.grab){ state.grab.x = x; state.grab.y = y; }
+  else { hoverKey = nearest(x, y); }
+});
+function release(){
+  if (!state.grab) return;
+  state.grab = null;
+  face.classList.remove('grabbing');
+}
+face.addEventListener('pointerup', release);
+face.addEventListener('pointercancel', release);
+face.addEventListener('pointerleave', () => { hoverKey = null; });
+
+/* ── panel wiring ──────────────────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+
+$('mode').addEventListener('click', () => {
+  state.mode = state.mode === 'strings' ? 'rods' : 'strings';
+  $('modeV').textContent = state.mode === 'strings' ? 'Strings' : 'Rods';
+  const a = angles();
+  hands.forEach((H, i) => H.reset(a[i]));
+});
+
+$('sw').addEventListener('click', e => {
+  const b = e.target.closest('.sw'); if (!b) return;
+  [...$('sw').children].forEach(c => c.setAttribute('aria-checked', String(c === b)));
+  const c = b.dataset.c;
+  state.accent = c === 'none' ? getComputedStyle(document.documentElement).getPropertyValue('--ink').trim() : c;
+});
+
+const swayThumb = $('swayThumb');
+$('sway').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const i = +b.dataset.i;
+  [...$('sway').querySelectorAll('button')].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  swayThumb.style.transform = `translateX(${i * 100}%)`;
+  state.sway = ['calm','normal','windy'][i];
+});
+swayThumb.style.transform = 'translateX(100%)';
+
+$('slack').addEventListener('input', e => {
+  state.slack = +e.target.value / 100;
+  $('slackV').textContent = e.target.value + '%';
+  $('slackFill').style.width = e.target.value + '%';
+});
+
+/* ── date + a11y readout ───────────────────────────────────────────── */
+function stamp(){
+  const d = new Date();
+  $('date').textContent = d.toLocaleDateString(undefined, { weekday:'short', day:'numeric', month:'short' });
+  $('srtime').textContent = d.toLocaleTimeString();
+}
+stamp(); setInterval(stamp, 30000);
+
+/* ══ probe surface ══════════════════════════════════════════════════
+   Read-only + clock pinning + deterministic stepping. There is NO
+   probe method that moves a string: dragging must go through the real
+   pointer path, because a probe that bypasses the handlers tests a path
+   nobody takes (cases/AUTHORING.md, 硬教训 1).                        */
+window.__probe = {
+  step: DT,
+  setTime(h, m, s){ state.pinned = { h, m, s }; },
+  unpin(){ state.pinned = null; },
+  reset(){ const a = angles(); hands.forEach((H,i)=>H.reset(a[i]));
+           hub.x = CX; hub.y = CY; hub.vx = hub.vy = 0; },
+  settle(ms){ const a = angles(); const n = Math.round(ms/1000/DT);
+              for (let i = 0; i < n; i++) step(a); paint(); },
+  mode(m){ state.mode = m; $('modeV').textContent = m === 'strings' ? 'Strings' : 'Rods'; },
+  slack(v){ state.slack = v; $('slack').value = Math.round(v*100);
+            $('slackV').textContent = Math.round(v*100)+'%'; $('slackFill').style.width = Math.round(v*100)+'%'; },
+  sway(s){ state.sway = s; },
+  grabbing(){ return state.grab ? state.grab.hand : null; },
+  /* client-space coords of a tip, so a test can put a REAL pointer on it */
+  tipXY(key){
+    const H = hands.find(h => h.key === key); if (!H) return null;
+    const r = face.getBoundingClientRect();
+    return { x: r.left + H.tipX/800*r.width, y: r.top + H.tipY/800*r.height };
+  },
+  hubXY(){ const r = face.getBoundingClientRect();
+           return { x: r.left + hub.x/800*r.width, y: r.top + hub.y/800*r.height }; },
+  hand(key){
+    const H = hands.find(h => h.key === key); if (!H) return null;
+    let arc = 0, maxV = 0, escaped = 0, bad = 0;
+    for (let i = 0; i < H.n; i++){
+      if (!Number.isFinite(H.x[i]) || !Number.isFinite(H.y[i])) bad++;
+      if (H.x[i] < -160 || H.x[i] > 960 || H.y[i] < -160 || H.y[i] > 960) escaped++;
+      if (i){ arc += Math.hypot(H.x[i]-H.x[i-1], H.y[i]-H.y[i-1]); }
+      if (i && i < H.n-1) maxV = Math.max(maxV, Math.hypot(H.x[i]-H.px[i], H.y[i]-H.py[i]) / DT);
+    }
+    const chord = Math.hypot(H.x[H.n-1]-H.x[0], H.y[H.n-1]-H.y[0]);
+    const tipAngle = (Math.atan2(H.tipX-CX, CY-H.tipY) * 180/Math.PI + 360) % 360;
+    const a = angles()[hands.indexOf(H)];
+    const target = (a * 180/Math.PI % 360 + 360) % 360;
+    let err = Math.abs(tipAngle - target); if (err > 180) err = 360 - err;
+    return { arc, chord, slack: arc/chord, tipAngle, target, angleErr: err,
+             maxV, escaped, bad, rest: H.R*(1+slackRatio()) };
+  },
+  keys: HANDS.map(h => h.key),
+};
+
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
