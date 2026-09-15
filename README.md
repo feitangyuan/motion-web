@@ -3,7 +3,7 @@
 > **Build motion-first, high-touch creative websites on vanilla Three.js / Canvas 2D / WebGL / CSS. A Claude Agent Skill with real-world physics, token discipline, and automated headless verification.**  
 > **动效即材质：面向 Agent 与前端工程师的高手感交互动效体系。内置 7 大完整案例、物理阻尼求解器、排版规范与自动化 Headless 验证判据。**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](LICENSE)
 [![Type](https://img.shields.io/badge/Type-Agent%20Skill-333.svg)](SKILL.md)
 [![Cases](https://img.shields.io/badge/Cases-7%2F7%20PASS-brightgreen.svg)](cases/)
 [![Platform](https://img.shields.io/badge/Platform-Vanilla%20JS%20%7C%20Canvas%20%7C%20WebGL2-orange.svg)](cases/)
@@ -162,7 +162,7 @@ python3 -m http.server 8899 -d cases/
 ```
 motion-web/
 ├── SKILL.md                 # Agent 核心执行规范与工作流定义
-├── LICENSE                  # MIT 开源许可证
+├── LICENSE                  # CC BY-NC 4.0 许可证（非商用）
 ├── README.md                # 规范与展示文档
 │
 ├── cases/                   # 7 大完整、可运行、可验证的交互案例
@@ -200,4 +200,4 @@ motion-web/
 
 ### License
 
-本项目采用 [MIT License](LICENSE) 开源协议。项目内嵌入的第三方开源字体子集保留原各自开源许可（SIL Open Font License）。
+本项目采用 [CC BY-NC 4.0](LICENSE)（知识共享署名-非商业性使用 4.0 国际）许可证。个人学习、学术研究与非商业展示可免费使用；禁止任何未经授权的商业集成、平台内置或营利性分发。如需商业授权或企业合作，请联系作者。项目内嵌入的第三方开源字体子集保留原各自开源许可（SIL Open Font License）。

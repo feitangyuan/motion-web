@@ -1,26 +1,56 @@
-MIT License
+Creative Commons Attribution-NonCommercial 4.0 International Public License (CC BY-NC 4.0)
 
 Copyright (c) 2026 feitangyuan
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+==============================================================================
+TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+==============================================================================
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+You are free to:
+1. Share — copy and redistribute the material in any medium or format.
+2. Adapt — remix, transform, and build upon the material.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Under the following terms:
 
----
+- Attribution (署名):
+  You must give appropriate credit to "feitangyuan", provide a link to this
+  license, and indicate if changes were made. You may do so in any reasonable
+  manner, but not in any way that suggests the licensor endorses you or your use.
+
+- NonCommercial (非商业性使用):
+  You may NOT use the material for commercial purposes.
+  * Commercial purposes include, but are not limited to:
+    - Integrating, bundling, or embedding this Skill, its prompts, cases, or
+      derivative workflows into commercial software, SaaS products, paid tools,
+      or commercial AI agent platforms / workspaces.
+    - Reselling, charging fees for access to, or monetizing any portion of
+      this repository or derived skills.
+    - Using this Skill directly in revenue-generating commercial client delivery
+      without a prior commercial license.
+  * Permitted non-commercial uses include:
+    - Personal learning, individual study, and hobby projects.
+    - Academic research and non-profit educational activities.
+    - Public open-source demonstration projects that do not generate commercial revenue.
+
+- No Additional Restrictions:
+  You may not apply legal terms or technological measures that legally restrict
+  others from doing anything the license permits.
+
+==============================================================================
+COMMERCIAL LICENSING & ENTERPRISE USE / 商业授权
+==============================================================================
+
+If you wish to use, integrate, or bundle this Skill in commercial products,
+enterprise environments, or AI agent platforms, please obtain written permission
+and a commercial license:
+
+Contact / 商务与授权联系:
+- GitHub: https://github.com/feitangyuan
+- Repository: https://github.com/feitangyuan/motion-web
+
+==============================================================================
+THIRD-PARTY ASSETS / 第三方资产说明
+==============================================================================
 
 This license covers this repository's own content: SKILL.md, references/,
 cases/, scripts/, and assets. Embedded third-party font subsets retain their original
