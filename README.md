@@ -8,6 +8,9 @@
 [![Cases](https://img.shields.io/badge/Cases-7%2F7%20PASS-brightgreen.svg)](cases/)
 [![Platform](https://img.shields.io/badge/Platform-Vanilla%20JS%20%7C%20Canvas%20%7C%20WebGL2-orange.svg)](cases/)
 
+**▶ From the same author: [onetake](https://github.com/feitangyuan/onetake), launch films and feature demos made with a coding agent, in one continuous take → [onetakemotion.com](https://onetakemotion.com)**\
+**▶ 同一作者：[onetake](https://github.com/feitangyuan/onetake)，用 coding agent 做一镜到底的产品发布片和功能演示 → [onetakemotion.com](https://onetakemotion.com)**
+
 ---
 
 [English](#english) | [中文说明](#chinese)
